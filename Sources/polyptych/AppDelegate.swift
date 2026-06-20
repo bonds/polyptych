@@ -86,9 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sliceViews.append(view)
             win.makeKeyAndOrderFront(nil)
 
-            let dlDelay = hasDL ? 0.20 : 0.0
             if hasDL && nativeIDs.contains(view.displayID) {
-                view.frameDelay = dlDelay
+                frameDelay = 0.05
+                view.frameDelay = frameDelay
             }
         }
 
@@ -96,8 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         mpv.start(file: filePath, isURL: isURL)
-        let initialDelay = isURL ? 0.0 : (hasDL ? 0.20 : 0.0)
-        if initialDelay > 0 { setSyncDelay(initialDelay, mpv: mpv) }
+        let initAudio = isURL ? 0.0 : (hasDL ? 0.15 : 0.0)
+        audioDelay = initAudio
+        if initAudio > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", initAudio)]) }
 
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.renderFrame()
@@ -187,16 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Sync
 
-    private var syncDelay: Double = 0
-
-    private func setSyncDelay(_ seconds: Double, mpv: MPVController) {
-        syncDelay = seconds
-        mpv.cmd(["set", "audio-delay", String(format: "%.2f", seconds)])
-        for view in sliceViews {
-            if view.frameDelay > 0 { view.frameDelay = seconds }
-        }
-        mpv.cmd(["show-text", String(format: "Delay: %dms", Int(seconds * 1000)), "1000"])
-    }
+    private var audioDelay: Double = 0
+    private var frameDelay: Double = 0
 
     // MARK: - Keyboard
 
@@ -212,10 +205,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch chars {
                 case " ": mpv.cmd(["cycle", "pause"])
                 case "q", "\u{1b}": NSApp.terminate(nil as Any?)
+                // Audio delay: [ ]
                 case "[":
-                    setSyncDelay(max(0, syncDelay - 0.05), mpv: mpv)
+                    audioDelay = max(0, audioDelay - 0.05)
+                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
+                    mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
                 case "]":
-                    setSyncDelay(min(1.0, syncDelay + 0.05), mpv: mpv)
+                    audioDelay = min(1.0, audioDelay + 0.05)
+                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
+                    mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
+                // Frame delay (video sync between monitors): { }
+                case "{":
+                    frameDelay = max(0, frameDelay - 0.05)
+                    for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
+                    mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
+                case "}":
+                    frameDelay = min(1.0, frameDelay + 0.05)
+                    for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
+                    mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
                 default: break
                 }
             }
