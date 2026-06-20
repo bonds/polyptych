@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -126,22 +127,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - YouTube download
 
     private static let tmpDir = "/tmp/polyptych-downloads"
-    private static let maxCacheAge: TimeInterval = 7 * 86400  // 7 days
+    private static let cacheIndexPath = "\(tmpDir)/.search_index.json"
+    private static let maxCacheAge: TimeInterval = 7 * 86400
+
+    private static func queryHash(_ query: String) -> String {
+        let d = Data(query.utf8)
+        let h = SHA256.hash(data: d)
+        return h.compactMap { String(format: "%02x", $0) }.prefix(16).joined()
+    }
+
+    private static func loadCacheIndex() -> [String: String] {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: cacheIndexPath)),
+              let idx = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return idx
+    }
+
+    private static func saveCacheIndex(_ idx: [String: String]) {
+        if let data = try? JSONEncoder().encode(idx) {
+            try? data.write(to: URL(fileURLWithPath: cacheIndexPath))
+        }
+    }
 
     private static func downloadYouTube(_ query: String) -> String? {
         try? FileManager.default.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
         cleanupOldCache()
 
-        // Step 1: resolve video ID quickly to check cache
+        let hash = queryHash(query)
+        let idx = loadCacheIndex()
+
+        // Step 1: search-term hash cache — instant if we've seen this query before
+        if let videoID = idx[hash] {
+            if let cached = findCacheFile(videoID) {
+                fputs("[polyptych] search cache hit: \(query)\n", stderr)
+                return cached
+            }
+        }
+
+        // Step 2: resolve video ID
         guard let videoID = resolveVideoID(query) else {
             fputs("polyptych: could not resolve video ID\n", stderr)
             return nil
         }
 
-        // Step 2: check for cached file
-        if let cached = findCacheFile(videoID) { return cached }
+        // Step 3: check video ID cache
+        if let cached = findCacheFile(videoID) {
+            var updated = idx
+            updated[hash] = videoID
+            saveCacheIndex(updated)
+            return cached
+        }
 
-        // Step 3: download
+        // Step 4: download
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--default-search", "ytsearch",
@@ -177,6 +214,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }
 
+        // Index the search hash for instant future lookups
+        var updated = idx
+        updated[hash] = videoID
+        saveCacheIndex(updated)
+
         return path
     }
 
@@ -203,8 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = URL(fileURLWithPath: tmpDir)
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: tmpDir) else { return nil }
         for f in files where f.hasPrefix(videoID) {
-            let path = dir.appendingPathComponent(f).path
-            return path
+            return dir.appendingPathComponent(f).path
         }
         return nil
     }
@@ -213,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = URL(fileURLWithPath: tmpDir)
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: tmpDir) else { return }
         let now = Date()
-        for f in files {
+        for f in files where !f.hasPrefix(".") {  // don't clean index files
             let path = dir.appendingPathComponent(f).path
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
                   let mtime = attrs[.modificationDate] as? Date,
