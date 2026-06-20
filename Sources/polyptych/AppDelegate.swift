@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         NSCursor.hide()
         mpvController?.cmd(["set", "pause", "no"])
+        for w in spannedWindows { w.level = .floating }
         IOPMAssertionCreateWithName(
             "NoDisplaySleepAssertion" as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
@@ -71,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidResignActive(_ notification: Notification) {
         NSCursor.unhide()
         mpvController?.cmd(["set", "pause", "yes"])
+        for w in spannedWindows { w.level = .normal }
         IOPMAssertionRelease(sleepAssertion)
     }
 
