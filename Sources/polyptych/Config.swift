@@ -1,13 +1,9 @@
 import Foundation
 
-/// Bezel gaps between adjacent screens, as fraction of screen width.
-/// gaps[i] = bezel between screen[i] and screen[i+1].
-struct BezelCalibration: Codable {
-    var gaps: [Double] = [0.075, 0.075]
-}
-
 struct AppConfig: Codable {
-    var bezel: BezelCalibration = BezelCalibration()
+    var bezelGaps: [Double] = [0.075, 0.075]
+    var audioDelay: Double = 0.15
+    var frameDelay: Double = 0.05
 }
 
 enum Config {

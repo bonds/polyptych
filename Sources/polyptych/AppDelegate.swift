@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -94,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             win.makeKeyAndOrderFront(nil)
 
             if hasDL && nativeIDs.contains(view.displayID) {
-                frameDelay = 0.05
+                frameDelay = cachedConfig.frameDelay
                 view.frameDelay = frameDelay
             }
         }
@@ -103,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         mpv.start(file: filePath, isURL: isURL)
-        let initAudio = isURL ? 0.0 : (hasDL ? 0.15 : 0.0)
+        let initAudio = isURL ? 0.0 : (hasDL ? cachedConfig.audioDelay : 0.0)
         audioDelay = initAudio
         if initAudio > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", initAudio)]) }
 
@@ -131,9 +130,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let maxCacheAge: TimeInterval = 7 * 86400
 
     private static func queryHash(_ query: String) -> String {
-        let d = Data(query.utf8)
-        let h = SHA256.hash(data: d)
-        return h.compactMap { String(format: "%02x", $0) }.prefix(16).joined()
+        var h = UInt64(5381)
+        for byte in query.utf8 {
+            h = ((h << 5) &+ h) &+ UInt64(byte)
+        }
+        return String(format: "%016llx", h)
     }
 
     private static func loadCacheIndex() -> [String: String] {
@@ -269,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let mpv = mpvController else { return }
         guard mpv.renderFrame() else { return }
 
-        let bezelFrac = cachedConfig.bezel.gaps.first ?? 0.075
+        let bezelFrac = cachedConfig.bezelGaps.first ?? 0.075
 
         for (i, sView) in sliceViews.enumerated() {
             guard i < cachedSlices.count else { break }
@@ -292,6 +293,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioDelay: Double = 0
     private var frameDelay: Double = 0
 
+    private func saveConfig() {
+        var cfg = cachedConfig
+        cfg.audioDelay = audioDelay
+        cfg.frameDelay = frameDelay
+        cfg.bezelGaps = cachedConfig.bezelGaps
+        Config.save(cfg)
+        cachedConfig = cfg
+    }
+
     // MARK: - Keyboard
 
     private func handleKey(_ event: NSEvent) {
@@ -311,19 +321,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     audioDelay = max(0, audioDelay - 0.05)
                     mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
                     mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
+                    saveConfig()
                 case "]":
                     audioDelay = min(1.0, audioDelay + 0.05)
                     mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
                     mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
+                    saveConfig()
                 // Frame delay (video sync between monitors): { }
                 case "{":
                     frameDelay = max(0, frameDelay - 0.05)
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
+                    saveConfig()
                 case "}":
                     frameDelay = min(1.0, frameDelay + 0.05)
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
+                    saveConfig()
                 default: break
                 }
             }
