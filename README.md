@@ -43,6 +43,10 @@ to fill its window. DisplayLink USB adapters are detected by refresh rate
 (120Hz native vs 60Hz USB), and per-screen frame delay keeps video in sync
 across all displays.
 
+Designed for 3 side-by-side portrait monitors. A portion of the video is
+cropped at each bezel gap (default 7.5% per side) so content isn't lost
+behind the monitor bezels.
+
 ## License
 
 MIT
