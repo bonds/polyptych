@@ -3,17 +3,27 @@ import AppKit
 enum InputMode {
     case file(String)
     case url(String)
-    case youtubeSearch(String)
+    case youtubeSearch(String, noCache: Bool)
 }
 
 func parseArgs() -> InputMode? {
     let args = CommandLine.arguments.dropFirst()
     guard let first = args.first else { return nil }
 
+    if first == "--no-cache" {
+        let next = args.dropFirst().first
+        if next == "-yt" || next == "--youtube" {
+            let query = args.dropFirst(2).joined(separator: " ")
+            guard !query.isEmpty else { return nil }
+            return .youtubeSearch(query, noCache: true)
+        }
+        return nil
+    }
+
     if first == "-yt" || first == "--youtube" {
         let query = args.dropFirst().joined(separator: " ")
         guard !query.isEmpty else { return nil }
-        return .youtubeSearch(query)
+        return .youtubeSearch(query, noCache: false)
     }
 
     if first.hasPrefix("ytdl://") || first.hasPrefix("http://") || first.hasPrefix("https://") {
@@ -24,7 +34,7 @@ func parseArgs() -> InputMode? {
 }
 
 guard let mode = parseArgs() else {
-    fputs("Usage: polyptych <video-file>\n       polyptych <url>\n       polyptych --youtube <search terms>\n", stderr)
+    fputs("Usage: polyptych <video-file>\n       polyptych <url>\n       polyptych --youtube <search terms>\n       polyptych --no-cache --youtube <search terms>\n", stderr)
     exit(1)
 }
 

@@ -1,9 +1,9 @@
 import Foundation
 
 struct AppConfig: Codable {
-    var bezelGaps: [Double] = [0.075, 0.075]
-    var audioDelay: Double = 0.15
-    var frameDelay: Double = 0.05
+    var bezelGaps: [Double] = [0, 0]
+    var audioDelay: Double = 0
+    var frameDelay: Double = 0
 }
 
 enum Config {

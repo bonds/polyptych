@@ -34,9 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 startPlayback(filePath: url, isURL: true)
             }
 
-        case .youtubeSearch(let query):
+        case .youtubeSearch(let query, let noCache):
             DispatchQueue.global().async { [self] in
-                if let path = Self.downloadYouTube(query) {
+                if let path = Self.downloadYouTube(query, noCache: noCache) {
                     downloadedFile = path
                     DispatchQueue.main.async { [self] in
                         startPlayback(filePath: path, isURL: false)
@@ -150,15 +150,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private static func downloadYouTube(_ query: String) -> String? {
+    private static func downloadYouTube(_ query: String, noCache: Bool = false) -> String? {
         try? FileManager.default.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
         cleanupOldCache()
 
         let hash = queryHash(query)
+
+        // --no-cache: purge existing cached file for this query
+        if noCache {
+            let idx = loadCacheIndex()
+            if let oldID = idx[hash], let oldPath = findCacheFile(oldID) {
+                try? FileManager.default.removeItem(atPath: oldPath)
+            }
+            var updated = idx
+            updated.removeValue(forKey: hash)
+            saveCacheIndex(updated)
+        }
+
         let idx = loadCacheIndex()
 
         // Step 1: search-term hash cache — instant if we've seen this query before
-        if let videoID = idx[hash] {
+        if !noCache, let videoID = idx[hash] {
             if let cached = findCacheFile(videoID) {
                 fputs("[polyptych] search cache hit: \(query)\n", stderr)
                 return cached
