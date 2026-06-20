@@ -1,7 +1,9 @@
-# polyptych
+# polyptych /ˈpɒlɪptɪk/
 
-Fullscreen video player that spans across multiple displays. Compensates for
-DisplayLink USB adapter latency and monitor bezels.
+A painting, typically an altarpiece, composed of multiple panels.
+
+Polyptych is a fullscreen video player that spans across multiple displays.
+Compensates for DisplayLink USB adapter latency and monitor bezels.
 
 ## Usage
 
