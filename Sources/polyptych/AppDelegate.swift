@@ -3,12 +3,14 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let filePath: String?
+    private let isURL: Bool
     private var mpvController: MPVController?
     private var spannedWindows: [SpannedWindow] = []
     private var sliceViews: [SliceView] = []
 
-    init(filePath: String?) {
+    init(filePath: String?, isURL: Bool) {
         self.filePath = filePath
+        self.isURL = isURL
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -18,16 +20,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let isURL = path.hasPrefix("ytdl://") || path.hasPrefix("http://") || path.hasPrefix("https://")
         if !isURL && !FileManager.default.fileExists(atPath: path) {
             fputs("polyptych: file not found: \(path)\n", stderr)
             NSApp.terminate(nil as Any?)
             return
         }
 
-        DispatchQueue.main.async { [self] in
-            startPlayback(filePath: path, isURL: isURL)
+        if isURL {
+            // yt-dlp runs on a background thread to get the stream URL
+            // (libmpv's built-in yt-dlp integration isn't available in the base package)
+            DispatchQueue.global().async { [self] in
+                let resolved = Self.resolveURL(path)
+                DispatchQueue.main.async { [self] in
+                    startPlayback(filePath: resolved, isURL: true)
+                    // Seek to start once loaded (YouTube CDN streams may not start at 0)
+                    mpvController?.cmd(["set", "time-pos", "0"])
+                }
+            }
+        } else {
+            DispatchQueue.main.async { [self] in
+                startPlayback(filePath: path, isURL: false)
+            }
         }
+    }
+
+    func applicationWillBecomeActive(_ notification: Notification) {
+        NSApp.presentationOptions = [.hideDock, .hideMenuBar]
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -36,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Setup
 
-    private func startPlayback(filePath: String, isURL: Bool = false) {
+    private func startPlayback(filePath: String, isURL: Bool) {
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
@@ -48,9 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mpv = MPVController(unionWidth: renderW, unionHeight: renderH)
         self.mpvController = mpv
 
-        // Detect native vs DisplayLink screens by refresh rate (120Hz+ = native)
-        let (nativeScreens, _) = DisplayDetector.classifyDisplays()
+        let (nativeScreens, dlScreens) = DisplayDetector.classifyDisplays()
         let nativeIDs = Set(nativeScreens.map { DisplayDetector.displayID(for: $0) })
+        let hasDL = !dlScreens.isEmpty
 
         for (s, _) in slices {
             let view = SliceView()
@@ -61,17 +79,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sliceViews.append(view)
             win.makeKeyAndOrderFront(nil)
 
-            // Delay native screens to match DisplayLink latency
-            if nativeIDs.contains(view.displayID) {
-                view.frameDelay = 0.20
+            let dlDelay = hasDL ? 0.20 : 0.0
+            let networkDelay = isURL ? 0.0 : dlDelay
+            if hasDL && nativeIDs.contains(view.displayID) {
+                view.frameDelay = dlDelay
             }
         }
 
-        mpv.start(file: filePath, isURL: isURL)
+        NSApp.activate(ignoringOtherApps: true)
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
-        // Baseline audio delay for DisplayLink screens
-        mpv.cmd(["set", "audio-delay", "0.20"])
+        mpv.start(file: filePath, isURL: isURL)
+        audioDelay = isURL ? 0.0 : (hasDL ? 0.20 : 0.0)
+        if audioDelay > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)]) }
 
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.renderFrame()
@@ -83,27 +103,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Auto A/V Sync (fine-tunes baseline delay)
+    // MARK: - URL resolution
 
-    private var avSyncCount = 0
-    private var avSyncAccum: Double = 0
-    private var audioDelay: Double = 0.20
-
-    private func checkAVSync() {
-        guard let mpv = mpvController, let av = mpv.readAVSync(), abs(av) > 0.001 else { return }
-        avSyncCount += 1
-        avSyncAccum += av
-
-        if avSyncCount >= 90 {
-            let avg = avSyncAccum / Double(avSyncCount)
-            if abs(avg) > 0.03 {
-                let correction = avg * 0.3
-                audioDelay = max(0, min(1.0, audioDelay + correction))
-                mpv.cmd(["set", "audio-delay", String(format: "%.3f", audioDelay)])
-            }
-            avSyncCount = 0
-            avSyncAccum = 0
-        }
+    private static func resolveURL(_ url: String) -> String {
+        let search = url.hasPrefix("ytdl://") ? String(url.dropFirst(7)) : url
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["yt-dlp", "--get-url", "--default-search", "ytsearch",
+                            "--format", "best[protocol^=http]/best", search]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch { return url }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !output.isEmpty else { return url }
+        return output.components(separatedBy: "\n").first ?? output
     }
 
     // MARK: - Render
@@ -115,14 +134,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
 
         guard mpv.renderFrame() else { return }
-        checkAVSync()
 
         let sx = Double(mpv.renderWidth) / Double(union.width)
         let sy = Double(mpv.renderHeight) / Double(union.height)
 
         for (i, sView) in sliceViews.enumerated() {
             guard i < slices.count else { break }
-            let s = slices[i].slice
+            let s = slices[i].1
             sView.updateSlice(
                 from: mpv,
                 sliceX: Int(Double(s.origin.x) * sx),
@@ -134,6 +152,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Keyboard
+
+    private var audioDelay: Double = 0
 
     private func handleKey(_ event: NSEvent) {
         guard let mpv = mpvController else { return }
@@ -147,6 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch chars {
                 case " ": mpv.cmd(["cycle", "pause"])
                 case "q", "\u{1b}": NSApp.terminate(nil as Any?)
+                case "[":
+                    audioDelay = max(0, audioDelay - 0.05)
+                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
+                case "]":
+                    audioDelay = min(1.0, audioDelay + 0.05)
+                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
                 default: break
                 }
             }

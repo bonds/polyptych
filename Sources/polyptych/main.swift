@@ -1,6 +1,7 @@
 import AppKit
 
 let filePath = CommandLine.arguments.dropFirst().first
+let isURL = filePath.map { $0.hasPrefix("ytdl://") || $0.hasPrefix("http://") || $0.hasPrefix("https://") } ?? false
 
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
@@ -14,6 +15,6 @@ appItem.submenu = appMenu
 menubar.addItem(appItem)
 app.mainMenu = menubar
 
-let delegate = AppDelegate(filePath: filePath)
+let delegate = AppDelegate(filePath: filePath, isURL: isURL)
 app.delegate = delegate
 app.run()
