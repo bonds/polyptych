@@ -2,42 +2,53 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let filePath: String?
-    private let isURL: Bool
+    private let mode: InputMode
     private var mpvController: MPVController?
     private var spannedWindows: [SpannedWindow] = []
     private var sliceViews: [SliceView] = []
+    private var downloadedFile: String?
 
-    init(filePath: String?, isURL: Bool) {
-        self.filePath = filePath
-        self.isURL = isURL
+    init(mode: InputMode) {
+        self.mode = mode
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard let path = filePath else {
-            fputs("Usage: polyptych <video-file-or-url>\n", stderr)
-            NSApp.terminate(nil as Any?)
-            return
-        }
-
-        if !isURL && !FileManager.default.fileExists(atPath: path) {
-            fputs("polyptych: file not found: \(path)\n", stderr)
-            NSApp.terminate(nil as Any?)
-            return
-        }
-
-        if isURL {
-            DispatchQueue.global().async { [self] in
-                let resolved = Self.resolveURL(path)
-                DispatchQueue.main.async { [self] in
-                    startPlayback(filePath: resolved, isURL: true)
-                }
+        switch mode {
+        case .file(let path):
+            guard FileManager.default.fileExists(atPath: path) else {
+                fputs("polyptych: file not found: \(path)\n", stderr)
+                NSApp.terminate(nil as Any?)
+                return
             }
-        } else {
             DispatchQueue.main.async { [self] in
                 startPlayback(filePath: path, isURL: false)
             }
+
+        case .url(let url):
+            DispatchQueue.main.async { [self] in
+                startPlayback(filePath: url, isURL: true)
+            }
+
+        case .youtubeSearch(let query):
+            DispatchQueue.global().async { [self] in
+                if let path = Self.downloadYouTube(query) {
+                    downloadedFile = path
+                    DispatchQueue.main.async { [self] in
+                        startPlayback(filePath: path, isURL: false)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        fputs("polyptych: YouTube download failed\n", stderr)
+                        NSApp.terminate(nil as Any?)
+                    }
+                }
+            }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let path = downloadedFile { try? FileManager.default.removeItem(atPath: path) }
+        try? FileManager.default.removeItem(atPath: Self.tmpDir)
     }
 
     func applicationWillBecomeActive(_ notification: Notification) {
@@ -76,7 +87,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             win.makeKeyAndOrderFront(nil)
 
             let dlDelay = hasDL ? 0.20 : 0.0
-            let networkDelay = isURL ? 0.0 : dlDelay
             if hasDL && nativeIDs.contains(view.displayID) {
                 view.frameDelay = dlDelay
             }
@@ -99,32 +109,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - URL resolution
+    // MARK: - YouTube download
 
-    private static func resolveURL(_ url: String) -> String {
-        let search = url.hasPrefix("ytdl://") ? String(url.dropFirst(7)) : url
+    private static let tmpDir = "/tmp/polyptych-downloads"
+
+    private static func downloadYouTube(_ query: String) -> String? {
+        try? FileManager.default.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["yt-dlp", "--get-url", "--default-search", "ytsearch",
-                            "--format", "best[protocol^=http]/best", search]
+        process.arguments = ["yt-dlp", "--default-search", "ytsearch",
+                            "--format", "bestvideo[height<=?1080]+bestaudio/best",
+                            "--merge-output-format", "mp4",
+                            "--output", "\(tmpDir)/%(id)s.%(ext)s",
+                            "--print", "after_move:\(tmpDir)/%(id)s.%(ext)s",
+                            query]
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+
         do {
             try process.run()
             process.waitUntilExit()
-        } catch { return url }
+        } catch {
+            fputs("polyptych: yt-dlp failed: \(error.localizedDescription)\n", stderr)
+            return nil
+        }
+
+        guard process.terminationStatus == 0 else {
+            fputs("polyptych: yt-dlp exited with status \(process.terminationStatus)\n", stderr)
+            return nil
+        }
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8)?
+        guard let path = String(data: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !output.isEmpty else { return url }
-        return output.components(separatedBy: "\n").first ?? output
+              !path.isEmpty,
+              FileManager.default.fileExists(atPath: path) else {
+            fputs("polyptych: downloaded file not found\n", stderr)
+            return nil
+        }
+
+        return path
     }
 
     // MARK: - Render
 
     private func renderFrame() {
-
         guard let mpv = mpvController else { return }
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
@@ -148,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Keyboard
+    // MARK: - Sync
 
     private var syncDelay: Double = 0
 
@@ -160,6 +192,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         mpv.cmd(["show-text", String(format: "Delay: %dms", Int(seconds * 1000)), "1000"])
     }
+
+    // MARK: - Keyboard
 
     private func handleKey(_ event: NSEvent) {
         guard let mpv = mpvController else { return }

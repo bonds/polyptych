@@ -1,7 +1,32 @@
 import AppKit
 
-let filePath = CommandLine.arguments.dropFirst().first
-let isURL = filePath.map { $0.hasPrefix("ytdl://") || $0.hasPrefix("http://") || $0.hasPrefix("https://") } ?? false
+enum InputMode {
+    case file(String)
+    case url(String)
+    case youtubeSearch(String)
+}
+
+func parseArgs() -> InputMode? {
+    let args = CommandLine.arguments.dropFirst()
+    guard let first = args.first else { return nil }
+
+    if first == "-yt" || first == "--youtube" {
+        let query = args.dropFirst().joined(separator: " ")
+        guard !query.isEmpty else { return nil }
+        return .youtubeSearch(query)
+    }
+
+    if first.hasPrefix("ytdl://") || first.hasPrefix("http://") || first.hasPrefix("https://") {
+        return .url(first)
+    }
+
+    return .file(first)
+}
+
+guard let mode = parseArgs() else {
+    fputs("Usage: polyptych <video-file>\n       polyptych <url>\n       polyptych --youtube <search terms>\n", stderr)
+    exit(1)
+}
 
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
@@ -15,6 +40,6 @@ appItem.submenu = appMenu
 menubar.addItem(appItem)
 app.mainMenu = menubar
 
-let delegate = AppDelegate(filePath: filePath, isURL: isURL)
+let delegate = AppDelegate(mode: mode)
 app.delegate = delegate
 app.run()
