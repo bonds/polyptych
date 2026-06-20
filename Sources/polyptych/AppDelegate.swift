@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillBecomeActive(_ notification: Notification) {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         NSCursor.hide()
+        mpvController?.cmd(["set", "pause", "no"])
         IOPMAssertionCreateWithName(
             "NoDisplaySleepAssertion" as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
@@ -69,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidResignActive(_ notification: Notification) {
         NSCursor.unhide()
+        mpvController?.cmd(["set", "pause", "yes"])
         IOPMAssertionRelease(sleepAssertion)
     }
 
@@ -132,8 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleKey(event)
-            return nil
+            if self?.handleKey(event) ?? false { return nil }
+            return event
         }
 
         // Cache display layout for the render loop
@@ -403,45 +405,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Keyboard
 
-    private func handleKey(_ event: NSEvent) {
-        guard let mpv = mpvController else { return }
+    /// Returns true if the key was handled (event swallowed).
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard let mpv = mpvController else { return false }
         switch event.keyCode {
-        case 123: mpv.cmd(["seek", "-5"])
-        case 124: mpv.cmd(["seek", "5"])
-        case 125: mpv.cmd(["seek", "-60"])
-        case 126: mpv.cmd(["seek", "60"])
+        case 123: mpv.cmd(["seek", "-5"]); return true
+        case 124: mpv.cmd(["seek", "5"]); return true
+        case 125: mpv.cmd(["seek", "-60"]); return true
+        case 126: mpv.cmd(["seek", "60"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
-                case " ": mpv.cmd(["cycle", "pause"])
+                case " ": mpv.cmd(["cycle", "pause"]); return true
                 case "q", "\u{1b}":
                     mpv.savePosition()
                     NSApp.terminate(nil as Any?)
-                // Audio delay: [ ]
+                    return true
                 case "[":
                     audioDelay = max(0, audioDelay - 0.05)
                     mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
                     mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
-                    saveConfig()
+                    saveConfig(); return true
                 case "]":
                     audioDelay = min(1.0, audioDelay + 0.05)
                     mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
                     mpv.cmd(["show-text", String(format: "Audio: %dms", Int(audioDelay * 1000)), "1000"])
-                    saveConfig()
-                // Frame delay (video sync between monitors): { }
+                    saveConfig(); return true
                 case "{":
                     frameDelay = max(0, frameDelay - 0.05)
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
-                    saveConfig()
+                    saveConfig(); return true
                 case "}":
                     frameDelay = min(1.0, frameDelay + 0.05)
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
-                    saveConfig()
+                    saveConfig(); return true
                 default: break
                 }
             }
         }
+        return false
     }
 }
