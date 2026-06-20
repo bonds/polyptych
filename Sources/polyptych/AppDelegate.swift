@@ -150,11 +150,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        startupComplete = true
     }
 
     @objc private func screensChanged() {
-        // Just update cached layout — windows resize naturally during render
-        // (slice coordinates are recalculated from the current screen layout)
+        guard startupComplete else { return }
         DispatchQueue.main.async { [self] in
             updateCachedLayout()
             // Rebuild slice views to match current display layout
@@ -395,6 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioDelay: Double = 0
     private var frameDelay: Double = 0
     private var sleepAssertion: IOPMAssertionID = IOPMAssertionID()
+    private var startupComplete = false
 
     private func saveConfig() {
         var cfg = cachedConfig
