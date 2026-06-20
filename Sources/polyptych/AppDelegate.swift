@@ -57,6 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillBecomeActive(_ notification: Notification) {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
+        NSCursor.hide()
+    }
+
+    func applicationDidResignActive(_ notification: Notification) {
+        NSCursor.unhide()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -116,11 +121,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Cache display layout for the render loop
+        updateCachedLayout()
+
+        // Rebuild windows when monitors are hotplugged
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screensChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    @objc private func screensChanged() {
+        // Defer to next run loop to avoid crashing during display configuration callback
+        DispatchQueue.main.async { [self] in
+            fputs("[polyptych] screens changed, rebuilding...\n", stderr)
+            for w in spannedWindows { w.close() }
+            spannedWindows.removeAll()
+            sliceViews.removeAll()
+
+            let screens = DisplayLayout.selectedScreens()
+            let slices = DisplayLayout.slices(for: screens, relativeTo: DisplayLayout.unionRect(of: screens))
+            let (nativeScreens, dlScreens) = DisplayDetector.classifyDisplays()
+            let nativeIDs = Set(nativeScreens.map { DisplayDetector.displayID(for: $0) })
+            let hasDL = !dlScreens.isEmpty
+
+            for (s, _) in slices {
+                let view = SliceView()
+                view.displayID = DisplayDetector.displayID(for: s)
+                let win = SpannedWindow(screenFrame: s.frame)
+                win.contentView = view
+                spannedWindows.append(win)
+                sliceViews.append(view)
+                win.makeKeyAndOrderFront(nil)
+
+                if hasDL && nativeIDs.contains(view.displayID) {
+                    view.frameDelay = frameDelay
+                }
+            }
+
+            NSApp.presentationOptions = [.hideDock, .hideMenuBar]
+            updateCachedLayout()
+            fputs("[polyptych] screens rebuilt\n", stderr)
+        }
+    }
+
+    private func updateCachedLayout() {
         let s = DisplayLayout.selectedScreens()
         cachedUnion = DisplayLayout.unionRect(of: s)
         cachedSlices = DisplayLayout.slices(for: s, relativeTo: cachedUnion)
-        cachedSx = Double(mpv.renderWidth) / Double(cachedUnion.width)
-        cachedSy = Double(mpv.renderHeight) / Double(cachedUnion.height)
+        cachedSx = Double(mpvController?.renderWidth ?? 1) / Double(max(cachedUnion.width, 1))
+        cachedSy = Double(mpvController?.renderHeight ?? 1) / Double(max(cachedUnion.height, 1))
     }
 
     // MARK: - YouTube download
