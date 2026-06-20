@@ -41,9 +41,10 @@ final class MPVController: @unchecked Sendable {
 
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")
-            mpv_set_option_string(mpv, "cache-secs", "30")
-            mpv_set_option_string(mpv, "demuxer-max-bytes", "200M")
+            mpv_set_option_string(mpv, "cache-secs", "60")
+            mpv_set_option_string(mpv, "demuxer-max-bytes", "500M")
             mpv_set_option_string(mpv, "demuxer-readahead-secs", "60")
+
         } else {
             mpv_set_option_string(mpv, "demuxer-readahead-secs", "0")
             mpv_set_option_string(mpv, "cache", "no")

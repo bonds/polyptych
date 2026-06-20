@@ -106,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--get-url", "--default-search", "ytsearch",
-                            "--format", "best[height<=?1080]", search]
+                            "--format", "best[protocol^=http]/best", search]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
