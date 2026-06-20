@@ -12,18 +12,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard let filePath else {
-            fputs("Usage: polyptych <video-file>\n", stderr)
+        guard let path = filePath else {
+            fputs("Usage: polyptych <video-file-or-url>\n", stderr)
             NSApp.terminate(nil as Any?)
             return
         }
-        guard FileManager.default.fileExists(atPath: filePath) else {
-            fputs("polyptych: file not found: \(filePath)\n", stderr)
+
+        let isURL = path.hasPrefix("ytdl://") || path.hasPrefix("http://") || path.hasPrefix("https://")
+        if !isURL && !FileManager.default.fileExists(atPath: path) {
+            fputs("polyptych: file not found: \(path)\n", stderr)
             NSApp.terminate(nil as Any?)
             return
         }
+
         DispatchQueue.main.async { [self] in
-            startPlayback(filePath: filePath)
+            startPlayback(filePath: path, isURL: isURL)
         }
     }
 
@@ -33,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Setup
 
-    private func startPlayback(filePath: String) {
+    private func startPlayback(filePath: String, isURL: Bool = false) {
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
@@ -64,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        mpv.start(file: filePath)
+        mpv.start(file: filePath, isURL: isURL)
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         // Baseline audio delay for DisplayLink screens

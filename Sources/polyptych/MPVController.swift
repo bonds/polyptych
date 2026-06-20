@@ -25,7 +25,7 @@ final class MPVController: @unchecked Sendable {
         buffer.deallocate()
     }
 
-    func start(file filePath: String) {
+    func start(file filePath: String, isURL: Bool = false) {
         guard let mpv = mpv_create() else { fatalError("mpv_create failed") }
         self.mpv = mpv
 
@@ -34,8 +34,17 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "hwdec", "no")
         mpv_set_option_string(mpv, "audio-buffer", "0.05")
         mpv_set_option_string(mpv, "video-sync", "audio")
-        mpv_set_option_string(mpv, "demuxer-readahead-secs", "0")
-        mpv_set_option_string(mpv, "cache", "no")
+
+        if isURL {
+            mpv_set_option_string(mpv, "cache", "yes")
+            mpv_set_option_string(mpv, "cache-secs", "30")
+            mpv_set_option_string(mpv, "demuxer-max-bytes", "200M")
+            mpv_set_option_string(mpv, "demuxer-readahead-secs", "60")
+        } else {
+            mpv_set_option_string(mpv, "demuxer-readahead-secs", "0")
+            mpv_set_option_string(mpv, "cache", "no")
+        }
+
         mpv_set_option_string(mpv, "audio-delay", "0.20")
 
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
