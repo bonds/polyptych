@@ -1,4 +1,4 @@
-# polyptych /ˈpɒlɪptɪk/
+# polyptych (pronounced: paul-ip-tick)
 
 A painting, typically an altarpiece, composed of multiple panels.
 
