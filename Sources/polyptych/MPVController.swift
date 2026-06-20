@@ -37,6 +37,7 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "osd-level", "1")
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
+        mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=?1080]+bestaudio/best")
 
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")
@@ -133,6 +134,14 @@ final class MPVController: @unchecked Sendable {
             if event.event_id == MPV_EVENT_SHUTDOWN {
                 DispatchQueue.main.async { NSApp.terminate(nil as Any?) }
                 break
+            }
+            if event.event_id == MPV_EVENT_END_FILE,
+               let data = event.data {
+                let end = data.load(as: mpv_event_end_file.self)
+                if end.reason == MPV_END_FILE_REASON_EOF {
+                    DispatchQueue.main.async { NSApp.terminate(nil as Any?) }
+                    break
+                }
             }
         }
     }

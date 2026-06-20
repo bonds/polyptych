@@ -27,14 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if isURL {
-            // yt-dlp runs on a background thread to get the stream URL
-            // (libmpv's built-in yt-dlp integration isn't available in the base package)
             DispatchQueue.global().async { [self] in
                 let resolved = Self.resolveURL(path)
                 DispatchQueue.main.async { [self] in
                     startPlayback(filePath: resolved, isURL: true)
-                    // Seek to start once loaded (YouTube CDN streams may not start at 0)
-                    mpvController?.cmd(["set", "time-pos", "0"])
                 }
             }
         } else {
@@ -59,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let union = DisplayLayout.unionRect(of: screens)
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
 
-        let renderScale: Double = 0.5
+        let renderScale: Double = 1.0
         let renderW = CInt(Double(union.width) * renderScale)
         let renderH = CInt(Double(union.height) * renderScale)
 
@@ -110,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--get-url", "--default-search", "ytsearch",
-                            "--format", "best[protocol^=http]/best", search]
+                            "--format", "best[height<=?1080]", search]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -128,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Render
 
     private func renderFrame() {
+
         guard let mpv = mpvController else { return }
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
