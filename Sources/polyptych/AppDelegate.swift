@@ -7,6 +7,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var spannedWindows: [SpannedWindow] = []
     private var sliceViews: [SliceView] = []
     private var downloadedFile: String?
+    private var cachedConfig = Config.load()
+    private var cachedSlices: [(NSScreen, NSRect)] = []
+    private var cachedUnion: NSRect = .zero
+    private var cachedSx: Double = 0
+    private var cachedSy: Double = 0
 
     init(mode: InputMode) {
         self.mode = mode
@@ -66,9 +71,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let union = DisplayLayout.unionRect(of: screens)
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
 
-        let renderScale: Double = 1.0
-        let renderW = CInt(Double(union.width) * renderScale)
-        let renderH = CInt(Double(union.height) * renderScale)
+        // Render at video-like resolution (1920x1080) instead of full union.
+        // SW renderer processes 2MP instead of 6MP per frame — much faster.
+        // GPU (CALayer) handles the final stretch to fill all displays.
+        let renderW = CInt(1920)
+        let renderH = CInt(1080)
 
         let mpv = MPVController(unionWidth: renderW, unionHeight: renderH)
         self.mpvController = mpv
@@ -108,6 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleKey(event)
             return nil
         }
+
+        // Cache display layout for the render loop
+        let s = DisplayLayout.selectedScreens()
+        cachedUnion = DisplayLayout.unionRect(of: s)
+        cachedSlices = DisplayLayout.slices(for: s, relativeTo: cachedUnion)
+        cachedSx = Double(mpv.renderWidth) / Double(cachedUnion.width)
+        cachedSy = Double(mpv.renderHeight) / Double(cachedUnion.height)
     }
 
     // MARK: - YouTube download
@@ -159,29 +173,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderFrame() {
         guard let mpv = mpvController else { return }
-        let screens = DisplayLayout.selectedScreens()
-        let union = DisplayLayout.unionRect(of: screens)
-        let slices = DisplayLayout.slices(for: screens, relativeTo: union)
-
         guard mpv.renderFrame() else { return }
 
-        let sx = Double(mpv.renderWidth) / Double(union.width)
-        let sy = Double(mpv.renderHeight) / Double(union.height)
-        let bezelFrac = 0.075  // 7.5% crop per side to compensate for monitor bezels
+        let bezelFrac = cachedConfig.bezel.gaps.first ?? 0.075
 
         for (i, sView) in sliceViews.enumerated() {
-            guard i < slices.count else { break }
-            var s = slices[i].1
-            // Crop each slice horizontally to mask bezels
+            guard i < cachedSlices.count else { break }
+            var s = cachedSlices[i].1
             let crop = Double(s.width) * bezelFrac
             s.origin.x += crop
             s.size.width -= crop * 2
             sView.updateSlice(
                 from: mpv,
-                sliceX: Int(Double(s.origin.x) * sx),
-                sliceY: Int(Double(s.origin.y) * sy),
-                sliceW: Int(Double(s.width) * sx),
-                sliceH: Int(Double(s.height) * sy)
+                sliceX: Int(Double(s.origin.x) * cachedSx),
+                sliceY: Int(Double(s.origin.y) * cachedSy),
+                sliceW: Int(Double(s.width) * cachedSx),
+                sliceH: Int(Double(s.height) * cachedSy)
             )
         }
     }
