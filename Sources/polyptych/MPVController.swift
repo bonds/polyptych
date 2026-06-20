@@ -52,7 +52,8 @@ final class MPVController: @unchecked Sendable {
             mpv_set_option_string(mpv, "cache-pause", "yes")
         }
 
-        mpv_set_option_string(mpv, "audio-delay", "0.20")
+        mpv_set_option_string(mpv, "save-position-on-quit", "yes")
+        mpv_set_option_string(mpv, "watch-later-dir", "\(NSHomeDirectory())/.config/polyptych/watch_later")
 
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
 
@@ -111,6 +112,11 @@ final class MPVController: @unchecked Sendable {
         var val = Double(0)
         let result = mpv_get_property(mpv, "avsync", MPV_FORMAT_DOUBLE, &val)
         return result >= 0 ? val : nil
+    }
+
+    /// Save playback position for resume.
+    func savePosition() {
+        cmd(["write-watch-later-config"])
     }
 
     // MARK: - Private

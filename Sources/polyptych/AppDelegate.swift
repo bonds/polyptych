@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.pwr_mgt
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -52,16 +53,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Don't clean up — keep for cache
+        mpvController?.savePosition()
+        IOPMAssertionRelease(sleepAssertion)
     }
 
     func applicationWillBecomeActive(_ notification: Notification) {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         NSCursor.hide()
+        IOPMAssertionCreateWithName(
+            "NoDisplaySleepAssertion" as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "polyptych video playback" as CFString,
+            &sleepAssertion)
     }
 
     func applicationDidResignActive(_ notification: Notification) {
         NSCursor.unhide()
+        IOPMAssertionRelease(sleepAssertion)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -107,6 +115,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         mpv.start(file: filePath, isURL: isURL)
+
+        // Prevent display sleep and screensaver during playback
+        IOPMAssertionCreateWithName(
+            "NoDisplaySleepAssertion" as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "polyptych video playback" as CFString,
+            &sleepAssertion)
+
         let initAudio = isURL ? 0.0 : (hasDL ? cachedConfig.audioDelay : 0.0)
         audioDelay = initAudio
         if initAudio > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", initAudio)]) }
@@ -133,34 +149,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func screensChanged() {
-        // Defer to next run loop to avoid crashing during display configuration callback
+        // Just update cached layout — windows resize naturally during render
+        // (slice coordinates are recalculated from the current screen layout)
         DispatchQueue.main.async { [self] in
-            fputs("[polyptych] screens changed, rebuilding...\n", stderr)
-            for w in spannedWindows { w.close() }
-            spannedWindows.removeAll()
-            sliceViews.removeAll()
-
-            let screens = DisplayLayout.selectedScreens()
-            let slices = DisplayLayout.slices(for: screens, relativeTo: DisplayLayout.unionRect(of: screens))
+            updateCachedLayout()
+            // Rebuild slice views to match current display layout
+            let slices = DisplayLayout.slices(
+                for: DisplayLayout.selectedScreens(),
+                relativeTo: DisplayLayout.unionRect(of: DisplayLayout.selectedScreens())
+            )
+            // Remove extra windows if screens were removed
+            while sliceViews.count > slices.count {
+                let old = spannedWindows.removeLast()
+                old.close()
+                sliceViews.removeLast()
+            }
+            // Update existing windows' frames and add new ones if screens were added
             let (nativeScreens, dlScreens) = DisplayDetector.classifyDisplays()
             let nativeIDs = Set(nativeScreens.map { DisplayDetector.displayID(for: $0) })
             let hasDL = !dlScreens.isEmpty
 
-            for (s, _) in slices {
-                let view = SliceView()
-                view.displayID = DisplayDetector.displayID(for: s)
-                let win = SpannedWindow(screenFrame: s.frame)
-                win.contentView = view
-                spannedWindows.append(win)
-                sliceViews.append(view)
-                win.makeKeyAndOrderFront(nil)
-
-                if hasDL && nativeIDs.contains(view.displayID) {
-                    view.frameDelay = frameDelay
+            for (i, (s, _)) in slices.enumerated() {
+                let sid = DisplayDetector.displayID(for: s)
+                if i < sliceViews.count {
+                    // Update existing window
+                    let view = sliceViews[i]
+                    view.displayID = sid
+                    let win = spannedWindows[i]
+                    win.setFrame(s.frame, display: true)
+                    if hasDL && nativeIDs.contains(sid) {
+                        view.frameDelay = frameDelay
+                    } else {
+                        view.frameDelay = 0
+                    }
+                } else {
+                    // New window for a new screen
+                    let view = SliceView()
+                    view.displayID = sid
+                    let win = SpannedWindow(screenFrame: s.frame)
+                    win.contentView = view
+                    spannedWindows.append(win)
+                    sliceViews.append(view)
+                    win.makeKeyAndOrderFront(nil)
+                    if hasDL && nativeIDs.contains(sid) {
+                        view.frameDelay = frameDelay
+                    }
                 }
             }
-
-            NSApp.presentationOptions = [.hideDock, .hideMenuBar]
             updateCachedLayout()
             fputs("[polyptych] screens rebuilt\n", stderr)
         }
@@ -355,6 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var audioDelay: Double = 0
     private var frameDelay: Double = 0
+    private var sleepAssertion: IOPMAssertionID = IOPMAssertionID()
 
     private func saveConfig() {
         var cfg = cachedConfig
@@ -378,7 +414,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let chars = event.characters {
                 switch chars {
                 case " ": mpv.cmd(["cycle", "pause"])
-                case "q", "\u{1b}": NSApp.terminate(nil as Any?)
+                case "q", "\u{1b}":
+                    mpv.savePosition()
+                    NSApp.terminate(nil as Any?)
                 // Audio delay: [ ]
                 case "[":
                     audioDelay = max(0, audioDelay - 0.05)
