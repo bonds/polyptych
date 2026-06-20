@@ -155,6 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func screensChanged() {
         guard startupComplete else { return }
+        // Save playback position first in case we crash during rebuild
+        mpvController?.savePosition()
         DispatchQueue.main.async { [self] in
             updateCachedLayout()
             // Rebuild slice views to match current display layout
