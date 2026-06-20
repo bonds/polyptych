@@ -52,8 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        if let path = downloadedFile { try? FileManager.default.removeItem(atPath: path) }
-        try? FileManager.default.removeItem(atPath: Self.tmpDir)
+        // Don't clean up — keep for cache
     }
 
     func applicationWillBecomeActive(_ notification: Notification) {
@@ -127,10 +126,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - YouTube download
 
     private static let tmpDir = "/tmp/polyptych-downloads"
+    private static let maxCacheAge: TimeInterval = 7 * 86400  // 7 days
 
     private static func downloadYouTube(_ query: String) -> String? {
         try? FileManager.default.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
+        cleanupOldCache()
 
+        // Step 1: resolve video ID quickly to check cache
+        guard let videoID = resolveVideoID(query) else {
+            fputs("polyptych: could not resolve video ID\n", stderr)
+            return nil
+        }
+
+        // Step 2: check for cached file
+        if let cached = findCacheFile(videoID) { return cached }
+
+        // Step 3: download
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--default-search", "ytsearch",
@@ -148,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try process.run()
             process.waitUntilExit()
         } catch {
-            fputs("polyptych: yt-dlp failed: \(error.localizedDescription)\n", stderr)
+            fputs("polyptych: yt-dlp download failed: \(error.localizedDescription)\n", stderr)
             return nil
         }
 
@@ -167,6 +178,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return path
+    }
+
+    private static func resolveVideoID(_ query: String) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["yt-dlp", "--default-search", "ytsearch",
+                       "--print", "id", "--no-warnings", query]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        do {
+            try p.run()
+            p.waitUntilExit()
+        } catch { return nil }
+        guard p.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let s = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (s?.isEmpty ?? true) ? nil : s
+    }
+
+    private static func findCacheFile(_ videoID: String) -> String? {
+        let dir = URL(fileURLWithPath: tmpDir)
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: tmpDir) else { return nil }
+        for f in files where f.hasPrefix(videoID) {
+            let path = dir.appendingPathComponent(f).path
+            return path
+        }
+        return nil
+    }
+
+    private static func cleanupOldCache() {
+        let dir = URL(fileURLWithPath: tmpDir)
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: tmpDir) else { return }
+        let now = Date()
+        for f in files {
+            let path = dir.appendingPathComponent(f).path
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+                  let mtime = attrs[.modificationDate] as? Date,
+                  now.timeIntervalSince(mtime) > maxCacheAge else { continue }
+            try? FileManager.default.removeItem(atPath: path)
+        }
     }
 
     // MARK: - Render
