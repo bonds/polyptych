@@ -166,10 +166,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let sx = Double(mpv.renderWidth) / Double(union.width)
         let sy = Double(mpv.renderHeight) / Double(union.height)
+        let bezelFrac = 0.075  // 7.5% crop per side to compensate for monitor bezels
 
         for (i, sView) in sliceViews.enumerated() {
             guard i < slices.count else { break }
-            let s = slices[i].1
+            var s = slices[i].1
+            // Crop each slice horizontally to mask bezels
+            let crop = Double(s.width) * bezelFrac
+            s.origin.x += crop
+            s.size.width -= crop * 2
             sView.updateSlice(
                 from: mpv,
                 sliceX: Int(Double(s.origin.x) * sx),
