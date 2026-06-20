@@ -33,10 +33,15 @@ cp .build/arm64-apple-macosx/release/polyptych polyptych.app/Contents/MacOS/
 
 ## How it works
 
-Uses mpv's software renderer to decode and scale video to 1920×1080, then
-renders per-display slices via CALayer compositing. Detects DisplayLink
-adapters by refresh rate (120Hz native vs 60Hz USB) and applies per-screen
-frame delay to keep video in sync across all displays.
+On macOS with "Displays have separate Spaces" enabled, a single window
+cannot span multiple monitors. Polyptych works around this by creating one
+borderless window per display and slicing the video to fit.
+
+The video is decoded and rendered to an offscreen buffer via mpv's software
+renderer, then each display's slice is composited via CALayer and stretched
+to fill its window. DisplayLink USB adapters are detected by refresh rate
+(120Hz native vs 60Hz USB), and per-screen frame delay keeps video in sync
+across all displays.
 
 ## License
 
