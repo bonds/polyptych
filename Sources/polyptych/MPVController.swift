@@ -34,6 +34,9 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "hwdec", "no")
         mpv_set_option_string(mpv, "audio-buffer", "0.05")
         mpv_set_option_string(mpv, "video-sync", "audio")
+        mpv_set_option_string(mpv, "osd-level", "1")
+        mpv_set_option_string(mpv, "osd-align-x", "center")
+        mpv_set_option_string(mpv, "osd-align-y", "center")
 
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")

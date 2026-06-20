@@ -90,8 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         mpv.start(file: filePath, isURL: isURL)
-        audioDelay = isURL ? 0.0 : (hasDL ? 0.20 : 0.0)
-        if audioDelay > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)]) }
+        let initialDelay = isURL ? 0.0 : (hasDL ? 0.20 : 0.0)
+        if initialDelay > 0 { setSyncDelay(initialDelay, mpv: mpv) }
 
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.renderFrame()
@@ -153,7 +153,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Keyboard
 
-    private var audioDelay: Double = 0
+    private var syncDelay: Double = 0
+
+    private func setSyncDelay(_ seconds: Double, mpv: MPVController) {
+        syncDelay = seconds
+        mpv.cmd(["set", "audio-delay", String(format: "%.2f", seconds)])
+        for view in sliceViews {
+            if view.frameDelay > 0 { view.frameDelay = seconds }
+        }
+        mpv.cmd(["show-text", String(format: "Delay: %dms", Int(seconds * 1000)), "1000"])
+    }
 
     private func handleKey(_ event: NSEvent) {
         guard let mpv = mpvController else { return }
@@ -168,11 +177,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case " ": mpv.cmd(["cycle", "pause"])
                 case "q", "\u{1b}": NSApp.terminate(nil as Any?)
                 case "[":
-                    audioDelay = max(0, audioDelay - 0.05)
-                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
+                    setSyncDelay(max(0, syncDelay - 0.05), mpv: mpv)
                 case "]":
-                    audioDelay = min(1.0, audioDelay + 0.05)
-                    mpv.cmd(["set", "audio-delay", String(format: "%.2f", audioDelay)])
+                    setSyncDelay(min(1.0, syncDelay + 0.05), mpv: mpv)
                 default: break
                 }
             }
