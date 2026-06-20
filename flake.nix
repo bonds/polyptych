@@ -25,8 +25,7 @@
 
           buildPhase = ''
             swift build -c release \
-              -Xlinker -L${libmpv}/lib \
-              -Xswiftc -I${libmpv.dev}/include
+              -Xlinker -L${libmpv}/lib
           '';
 
           installPhase = ''
@@ -36,10 +35,6 @@
             mkdir -p $out/bin
             ln -s $out/Applications/polyptych.app/Contents/MacOS/polyptych \
               $out/bin/polyptych
-            # Copy Info.plist if present
-            [ -f polyptych.app/Contents/Info.plist ] && \
-              cp polyptych.app/Contents/Info.plist \
-                $out/Applications/polyptych.app/Contents/
           '';
 
           meta = with pkgs.lib; {
