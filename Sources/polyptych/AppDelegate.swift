@@ -142,68 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Cache display layout for the render loop
         updateCachedLayout()
 
-        // Rebuild windows when monitors are hotplugged
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(screensChanged),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
-        )
         startupComplete = true
-    }
-
-    @objc private func screensChanged() {
-        guard startupComplete else { return }
-        // Save playback position first in case we crash during rebuild
-        mpvController?.savePosition()
-        DispatchQueue.main.async { [self] in
-            updateCachedLayout()
-            // Rebuild slice views to match current display layout
-            let slices = DisplayLayout.slices(
-                for: DisplayLayout.selectedScreens(),
-                relativeTo: DisplayLayout.unionRect(of: DisplayLayout.selectedScreens())
-            )
-            // Remove extra windows if screens were removed
-            while sliceViews.count > slices.count {
-                let old = spannedWindows.removeLast()
-                old.close()
-                sliceViews.removeLast()
-            }
-            // Update existing windows' frames and add new ones if screens were added
-            let (nativeScreens, dlScreens) = DisplayDetector.classifyDisplays()
-            let nativeIDs = Set(nativeScreens.map { DisplayDetector.displayID(for: $0) })
-            let hasDL = !dlScreens.isEmpty
-
-            for (i, (s, _)) in slices.enumerated() {
-                let sid = DisplayDetector.displayID(for: s)
-                if i < sliceViews.count {
-                    // Update existing window
-                    let view = sliceViews[i]
-                    view.displayID = sid
-                    let win = spannedWindows[i]
-                    win.setFrame(s.frame, display: true)
-                    if hasDL && nativeIDs.contains(sid) {
-                        view.frameDelay = frameDelay
-                    } else {
-                        view.frameDelay = 0
-                    }
-                } else {
-                    // New window for a new screen
-                    let view = SliceView()
-                    view.displayID = sid
-                    let win = SpannedWindow(screenFrame: s.frame)
-                    win.contentView = view
-                    spannedWindows.append(win)
-                    sliceViews.append(view)
-                    win.makeKeyAndOrderFront(nil)
-                    if hasDL && nativeIDs.contains(sid) {
-                        view.frameDelay = frameDelay
-                    }
-                }
-            }
-            updateCachedLayout()
-            fputs("[polyptych] screens rebuilt\n", stderr)
-        }
     }
 
     private func updateCachedLayout() {
@@ -396,7 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioDelay: Double = 0
     private var frameDelay: Double = 0
     private var sleepAssertion: IOPMAssertionID = IOPMAssertionID()
-    private var startupComplete = false
+
 
     private func saveConfig() {
         var cfg = cachedConfig
