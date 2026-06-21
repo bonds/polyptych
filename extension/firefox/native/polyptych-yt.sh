@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Native messaging host for polyptych Firefox extension."""
-import json, os, struct, subprocess, sys
+import json, os, struct, sys
 
-POLYPTYCH = "@polyptych_bin@"
-if POLYPTYCH.startswith("@"):
-    POLYPTYCH = "polyptych"
+REQUEST = "/tmp/polyptych-yt-request"
 
 def read_message():
     raw = sys.stdin.buffer.read(4)
@@ -21,10 +19,9 @@ def main():
         url = msg.get("url", "")
         if not url:
             continue
-        subprocess.Popen([POLYPTYCH, "--youtube", url],
-                         stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+        # Write URL to file — a LaunchAgent watches and spawns polyptych
+        with open(REQUEST, "w") as f:
+            f.write(url + "\n")
         sys.stdout.buffer.write(struct.pack("<I", 2))
         sys.stdout.buffer.write(b"{}")
         sys.stdout.buffer.flush()

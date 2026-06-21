@@ -53,6 +53,16 @@
                 $out/lib/mozilla/native-messaging-hosts/com.polyptych.youtube.json \
                 --replace-fail '"path": "/run/current-system/sw/bin/polyptych-yt"' \
                              '"path": "${placeholder "out"}/bin/polyptych-yt"'
+
+              # Watcher LaunchAgent
+              substitute ${./extension/firefox/native/polyptych-yt-watcher.sh} \
+                $out/bin/polyptych-yt-watcher \
+                --replace-fail '@polyptych_bin@' "$out/bin/polyptych"
+              chmod +x $out/bin/polyptych-yt-watcher
+
+              substitute ${./extension/firefox/native/com.polyptych.watcher.plist} \
+                $out/lib/LaunchAgents/com.polyptych.watcher.plist \
+                --replace-fail '@watcher_bin@' "$out/bin/polyptych-yt-watcher"
             '';
 
             meta = with pkgs.lib; {
