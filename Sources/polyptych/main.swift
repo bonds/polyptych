@@ -10,6 +10,11 @@ func parseArgs() -> InputMode? {
     let args = CommandLine.arguments.dropFirst()
     guard let first = args.first else { return nil }
 
+    if first == "--version" || first == "-v" {
+        print("polyptych \(polyptychVersion) (\(polyptychCommit))")
+        exit(0)
+    }
+
     if first == "--no-cache" {
         let next = args.dropFirst().first
         if next == "-yt" || next == "--youtube" {

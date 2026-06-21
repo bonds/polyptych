@@ -29,6 +29,9 @@
           ];
 
             buildPhase = ''
+              cat > Sources/polyptych/Version.generated.swift << SWIFT_EOF
+              let polyptychCommit = "${builtins.substring 0 7 (self.rev or "unknown")}"
+              SWIFT_EOF
               swift build -c release --disable-sandbox \
                 -Xlinker -L${libmpv}/lib
             '';

@@ -13,11 +13,6 @@ final class MPVController: @unchecked Sendable {
     private var buffers: [UnsafeMutablePointer<UInt8>] = []
     private var renderIndex = 0
 
-    /// The buffer that was just rendered into — safe from overwrite for ~2 more frames.
-    var latestRenderBuffer: UnsafeMutablePointer<UInt8> {
-        buffers[(renderIndex - 1 + numBuffers) % numBuffers]
-    }
-
     init(unionWidth: Int32, unionHeight: Int32) {
         self.renderWidth = unionWidth
         self.renderHeight = unionHeight
@@ -98,18 +93,14 @@ final class MPVController: @unchecked Sendable {
         var swStride = renderStride
 
         let result = "bgra".withCString { fmt in
-            withUnsafeMutablePointer(to: &swSize) { sizePtr in
-                withUnsafeMutablePointer(to: &swStride) { stridePtr in
-                    var params: [mpv_render_param] = [
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: sizePtr),
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: stridePtr),
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
-                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-                    ]
-                    return mpv_render_context_render(rc, &params)
-                }
-            }
+            var params: [mpv_render_param] = [
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: &swSize),
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &swStride),
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
+                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+            ]
+            return mpv_render_context_render(rc, &params)
         }
         guard result >= 0 else { return nil }
         renderIndex = (renderIndex + 1) % numBuffers
