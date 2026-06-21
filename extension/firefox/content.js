@@ -37,7 +37,17 @@
       if (url) {
         btn.disabled = true;
         btn.title = "Launching polyptych…";
-        chrome.runtime.sendMessage({ type: "play", url }, () => {
+        chrome.runtime.sendMessage({ type: "play", url }, (resp) => {
+          if (chrome.runtime.lastError) {
+            btn.title = "Error: " + chrome.runtime.lastError.message;
+            setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
+            return;
+          }
+          if (resp && resp.error) {
+            btn.title = "Error: " + resp.error;
+            setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
+            return;
+          }
           setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 3000);
         });
       }
