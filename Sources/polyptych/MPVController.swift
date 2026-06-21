@@ -37,7 +37,7 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "vo", "libmpv")
         mpv_set_option_string(mpv, "hwdec", "no")
         mpv_set_option_string(mpv, "audio-buffer", "0.05")
-        mpv_set_option_string(mpv, "video-sync", "desync")
+        mpv_set_option_string(mpv, "video-sync", "audio")
         mpv_set_option_string(mpv, "osd-level", "1")
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
@@ -136,6 +136,8 @@ final class MPVController: @unchecked Sendable {
 
     // MARK: - Private
 
+    var onNeedsRender: (() -> Void)?
+
     private func setupSWRenderContext() {
         "sw".withCString { apiType in
             var initParams: [mpv_render_param] = [
@@ -147,7 +149,12 @@ final class MPVController: @unchecked Sendable {
             }
         }
 
-        mpv_render_context_set_update_callback(renderContext, { _ in }, nil)
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        mpv_render_context_set_update_callback(renderContext, { ptr in
+            guard let ptr else { return }
+            let this = Unmanaged<MPVController>.fromOpaque(ptr).takeUnretainedValue()
+            DispatchQueue.main.async { this.onNeedsRender?() }
+        }, ctx)
     }
 
     private func processEvents() {

@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         audioDelay = initAudio
         if initAudio > 0 { mpv.cmd(["set", "audio-delay", String(format: "%.2f", initAudio)]) }
 
-        Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        mpv.onNeedsRender = { [weak self] in
             self?.renderFrame()
         }
 
