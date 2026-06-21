@@ -117,10 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 view.frameDelay = frameDelay
             }
 
-            // IOSurface as layer contents — set once, CA auto-picks up pixel changes
-            view.layer?.contents = mpv.surface
-            let cr = contentsRect(for: i)
-            view.layer?.contentsRect = cr
+            // Set contentsRect once (persists across CGImage updates)
+            view.layer?.contentsRect = contentsRect(for: i)
             if debugMode {
                 fputs("[polyptych] window \(i): frame=\(s.frame) displayID=\(view.displayID) contentsRect=\(cr)\n", stderr)
             }
@@ -376,42 +374,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // IOSurface pixels are now updated — CA auto-picks up the change.
-        // Only the delayed screen needs explicit handling (deep-copy for queue).
+        // Create a shared CGImage from the IOSurface for all non-delayed windows.
+        let stride = Int(mpv.renderStride)
+        let rw = Int(mpv.renderWidth)
+        let rh = Int(mpv.renderHeight)
+        let bmi = CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+                | CGBitmapInfo.byteOrder32Little.rawValue
+        )
+
+        let sharedCGImage: CGImage? = {
+            mpv.surface.lock(options: IOSurfaceLockOptions(rawValue: 1), seed: nil) // kIOSurfaceLockReadOnly
+            defer { mpv.surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
+            let ptr = mpv.surface.baseAddress.assumingMemoryBound(to: UInt8.self)
+            let data = NSData(bytesNoCopy: ptr, length: rh * stride, freeWhenDone: false)
+            guard let provider = CGDataProvider(data: data) else { return nil }
+            return CGImage(
+                width: rw, height: rh,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: stride,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: bmi,
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: true,
+                intent: .defaultIntent
+            )
+        }()
+
         for (i, sView) in sliceViews.enumerated() {
             if debugMode && fpsFrames == 0 {
                 fputs("[polyptych] render \(i): delay=\(sView.frameDelay)\n", stderr)
             }
             guard i < cachedSlices.count else { break }
+
             if sView.frameDelay > 0 {
+                // Delayed screen: deep-copy the slice and queue it
                 let s = bezelCroppedSlice(i)
                 let sliceW = Int(Double(s.width) * cachedSx)
                 let sliceH = Int(Double(s.size.height) * cachedSy)
                 let sliceX = Int(Double(s.origin.x) * cachedSx)
                 let sliceY = Int(Double(s.origin.y) * cachedSy)
-
                 let required = sliceW * sliceH * 4
                 let pixelCopy = UnsafeMutablePointer<UInt8>.allocate(capacity: required)
                 mpv.copySlice(x: sliceX, y: sliceY, width: sliceW, height: sliceH,
                                into: pixelCopy, destStride: sliceW * 4)
                 let data = NSData(bytesNoCopy: pixelCopy, length: required, freeWhenDone: true)
                 guard let provider = CGDataProvider(data: data) else { continue }
-                let bitmapInfo = CGBitmapInfo(
-                    rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
-                        | CGBitmapInfo.byteOrder32Little.rawValue
-                )
                 guard let cgImg = CGImage(
                     width: sliceW, height: sliceH,
                     bitsPerComponent: 8, bitsPerPixel: 32,
                     bytesPerRow: sliceW * 4,
                     space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: bitmapInfo,
+                    bitmapInfo: bmi,
                     provider: provider,
                     decode: nil,
                     shouldInterpolate: true,
                     intent: .defaultIntent
                 ) else { continue }
                 sView.enqueueDelayedImage(cgImg)
+            } else if let cg = sharedCGImage {
+                sView.layer?.contents = cg
             }
         }
 
