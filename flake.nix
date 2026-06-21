@@ -41,10 +41,22 @@
               mkdir -p $out/bin
               ln -s $out/Applications/polyptych.app/Contents/MacOS/polyptych \
                 $out/bin/polyptych
+
+              # Native messaging host for Firefox extension
+              mkdir -p $out/bin
+              substitute ${./extension/firefox/native/polyptych-yt.sh} $out/bin/polyptych-yt \
+                --replace-fail '@polyptych_bin@' "$out/bin/polyptych"
+              chmod +x $out/bin/polyptych-yt
+
+              mkdir -p $out/lib/mozilla/native-messaging-hosts
+              substitute ${./extension/firefox/native/com.polyptych.youtube.json} \
+                $out/lib/mozilla/native-messaging-hosts/com.polyptych.youtube.json \
+                --replace-fail '"path": "/run/current-system/sw/bin/polyptych-yt"' \
+                             '"path": "$out/bin/polyptych-yt"'
             '';
 
             meta = with pkgs.lib; {
-              description = "Multi-monitor video player";
+              description = "Multi-monitor video player — spans across all displays";
               homepage = "https://github.com/bonds/polyptych";
               maintainers = [ ];
               platforms = platforms.darwin;

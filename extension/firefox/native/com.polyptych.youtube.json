@@ -1,0 +1,7 @@
+{
+  "name": "com.polyptych.youtube",
+  "description": "Launch polyptych to play YouTube videos across all monitors",
+  "path": "/run/current-system/sw/bin/polyptych-yt",
+  "type": "stdio",
+  "allowed_extensions": ["polyptych@bonds.github.io"]
+}

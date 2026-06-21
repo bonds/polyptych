@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "polyptych",
+  "version": "0.3.0",
+  "description": "Play YouTube videos across all your monitors with polyptych",
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*", "*://youtu.be/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "permissions": ["nativeMessaging"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "polyptych@bonds.github.io",
+      "strict_min_version": "128.0"
+    }
+  }
+}
