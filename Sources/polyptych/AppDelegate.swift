@@ -1,7 +1,6 @@
 import AppKit
 import IOKit.pwr_mgt
 
-@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let mode: InputMode
     private var mpvController: MPVController?

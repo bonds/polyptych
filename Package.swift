@@ -1,9 +1,9 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.10
 import PackageDescription
 
 let package = Package(
     name: "polyptych",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v14)],
     targets: [
         .systemLibrary(
             name: "Clibmpv",
@@ -11,10 +11,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "polyptych",
-            dependencies: ["Clibmpv"],
-            linkerSettings: [
-                .unsafeFlags(["-L", "/nix/store/03zfgn8fi73mrnr848y69vhb6nn04zwp-mpv-0.41.0/lib"])
-            ]
+            dependencies: ["Clibmpv"]
         )
     ]
 )

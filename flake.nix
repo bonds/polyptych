@@ -20,13 +20,16 @@
 
           buildInputs = with pkgs; [
             swift
+            swiftpm
             libmpv
           ];
 
           buildPhase = ''
-            swift build -c release \
+            swift build -c release --disable-sandbox \
               -Xlinker -L${libmpv}/lib
           '';
+
+          SWIFTPM_CACHE_BASE = "$TMPDIR/.cache/swiftpm";
 
           installPhase = ''
             mkdir -p $out/Applications/polyptych.app/Contents/MacOS
