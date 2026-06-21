@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         for (i, (s, _)) in slices.enumerated() {
             guard i < cachedSlices.count else { break }
-            let view = SliceView()
+            let view = SliceView(frame: .zero)
             view.displayID = DisplayDetector.displayID(for: s)
             let win = SpannedWindow(screenFrame: s.frame)
             win.contentView = view
