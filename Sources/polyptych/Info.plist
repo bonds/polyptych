@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>polyptych</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.bonds.polyptych</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>polyptych</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.4.1</string>
+    <key>CFBundleVersion</key>
+    <string>0.4.1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Video File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>mp4</string>
+                <string>m4v</string>
+                <string>mov</string>
+                <string>mkv</string>
+                <string>avi</string>
+                <string>mpg</string>
+                <string>mpeg</string>
+                <string>webm</string>
+                <string>wmv</string>
+                <string>flv</string>
+                <string>3gp</string>
+                <string>ts</string>
+                <string>mts</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

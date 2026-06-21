@@ -18,7 +18,7 @@
         {
           default = pkgs.stdenv.mkDerivation {
             pname = "polyptych";
-            version = "0.4.0";
+            version = "0.4.1";
             src = self;
 
           buildInputs = with pkgs; [
@@ -42,6 +42,8 @@
               mkdir -p $out/Applications/polyptych.app/Contents/MacOS
               cp .build/arm64-apple-macosx/release/polyptych \
                 $out/Applications/polyptych.app/Contents/MacOS/polyptych
+              cp ${./Sources/polyptych/Info.plist} \
+                $out/Applications/polyptych.app/Contents/Info.plist
               mkdir -p $out/bin
               ln -s $out/Applications/polyptych.app/Contents/MacOS/polyptych \
                 $out/bin/polyptych
