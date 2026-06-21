@@ -1,5 +1,7 @@
 import AppKit
 
+var debugMode = false
+
 enum InputMode {
     case file(String)
     case url(String)
@@ -7,7 +9,17 @@ enum InputMode {
 }
 
 func parseArgs() -> InputMode? {
-    let args = CommandLine.arguments.dropFirst()
+    // Extract --debug from anywhere, keep the rest as args
+    let allArgs = CommandLine.arguments.dropFirst()
+    var args: [String] = []
+    for a in allArgs {
+        if a == "--debug" || a == "-d" {
+            debugMode = true
+        } else {
+            args.append(a)
+        }
+    }
+
     guard let first = args.first else { return nil }
 
     if first == "--version" || first == "-v" {

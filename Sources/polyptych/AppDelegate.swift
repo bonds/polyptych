@@ -401,18 +401,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let t3 = CFAbsoluteTimeGetCurrent()
 
-        // FPS counter — log once per second
-        fpsFrames += 1
-        let now = CFAbsoluteTimeGetCurrent()
-        if fpsLastTime == 0 { fpsLastTime = now }
-        if now - fpsLastTime >= 1.0 {
-            let fps = Double(fpsFrames) / (now - fpsLastTime)
-            let rMs = (t1 - t0) * 1000
-            let cgMs = (t2 - t1) * 1000
-            let sMs = (t3 - t2) * 1000
-            fputs("[polyptych] FPS: \(Int(round(fps))) | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
-            fpsFrames = 0
-            fpsLastTime = now
+        // FPS counter — log once per second in debug mode
+        if debugMode {
+            fpsFrames += 1
+            let now = CFAbsoluteTimeGetCurrent()
+            if fpsLastTime == 0 { fpsLastTime = now }
+            if now - fpsLastTime >= 1.0 {
+                let fps = Double(fpsFrames) / (now - fpsLastTime)
+                let rMs = (t1 - t0) * 1000
+                let cgMs = (t2 - t1) * 1000
+                let sMs = (t3 - t2) * 1000
+                fputs("[polyptych] \(Int(round(fps)))fps | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
+                fpsFrames = 0
+                fpsLastTime = now
+            }
         }
     }
 
