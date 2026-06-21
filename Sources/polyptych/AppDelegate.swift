@@ -357,21 +357,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func renderFrame() {
         guard let mpv = mpvController else { return }
         renderAttempts += 1
+        let fStart = CFAbsoluteTimeGetCurrent()
 
-        let t0 = CFAbsoluteTimeGetCurrent()
-        guard let renderBuf = mpv.renderFrame() else { renderMisses += 1; return }
-        let t1 = CFAbsoluteTimeGetCurrent()
+        guard let renderBuf = mpv.renderFrame() else {
+            renderMisses += 1
+            if debugMode { logFrame(fStart, CFAbsoluteTimeGetCurrent(), false, renderW: 0, renderH: 0, mpv: mpv) }
+            return
+        }
 
         let renderW = Int(mpv.renderWidth)
         let renderH = Int(mpv.renderHeight)
         let stride = Int(mpv.renderStride)
 
-        // Single CGImage shared across all non-delayed windows
         guard let fullImage = makeFullImage(from: renderBuf,
                                              width: renderW,
                                              height: renderH,
                                              stride: stride) else { return }
-        let t2 = CFAbsoluteTimeGetCurrent()
 
         let bezelFrac = cachedConfig.bezelGaps.first ?? 0.075
 
@@ -402,29 +403,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sView.setSharedContents(fullImage, contentsRect: rect)
             }
         }
-        let t3 = CFAbsoluteTimeGetCurrent()
 
-        // FPS counter — log once per second in debug mode
-        if debugMode {
-            fpsFrames += 1
-            let now = CFAbsoluteTimeGetCurrent()
-            if fpsLastTime == 0 { fpsLastTime = now }
-            if now - fpsLastTime >= 1.0 {
-                let fps = Double(fpsFrames) / (now - fpsLastTime)
-                let hitRate = renderAttempts > 0
-                    ? String(format: "%.0f%%", Double(fpsFrames) / Double(renderAttempts) * 100)
-                    : "0%"
-                let vfps = mpv.readPropDouble("estimated-vf-fps") ?? 0
-                let drops = mpv.readPropInt64("frame-drop-count") ?? 0
-                let rMs = (t1 - t0) * 1000
-                let cgMs = (t2 - t1) * 1000
-                let sMs = (t3 - t2) * 1000
-                fputs("[polyptych] \(Int(round(fps)))fps hit:\(hitRate) vfps:\(Int(round(vfps))) drops:\(drops) | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
-                fpsFrames = 0
-                fpsLastTime = now
-                renderAttempts = 0
-                renderMisses = 0
-            }
+        if debugMode { logFrame(fStart, CFAbsoluteTimeGetCurrent(), true, renderW: renderW, renderH: renderH, mpv: mpv) }
+    }
+
+    private func logFrame(_ fStart: CFAbsoluteTime, _ fEnd: CFAbsoluteTime, _ success: Bool,
+                           renderW: Int, renderH: Int, mpv: MPVController) {
+        if success { fpsFrames += 1 }
+        let now = CFAbsoluteTimeGetCurrent()
+        if fpsLastTime == 0 { fpsLastTime = now }
+        if now - fpsLastTime >= 1.0 {
+            let elapsed = now - fpsLastTime
+            let fps = Double(fpsFrames) / elapsed
+            let hitRate = renderAttempts > 0
+                ? String(format: "%.0f%%", Double(fpsFrames) / Double(renderAttempts) * 100)
+                : "0%"
+            let vfps = mpv.readPropDouble("estimated-vf-fps") ?? 0
+            let drops = mpv.readPropInt64("frame-drop-count") ?? 0
+            let totalMs = (fEnd - fStart) * 1000
+            fputs("[polyptych] \(Int(round(fps)))fps hit:\(hitRate) vfps:\(Int(round(vfps))) drops:\(drops) | frame:\(Int(totalMs))ms | \(renderW)×\(renderH)\n", stderr)
+            fpsFrames = 0
+            fpsLastTime = now
+            renderAttempts = 0
+            renderMisses = 0
         }
     }
 
