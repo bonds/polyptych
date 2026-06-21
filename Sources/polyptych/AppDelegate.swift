@@ -141,6 +141,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Cache display layout for the render loop
         updateCachedLayout()
+
+        // Monitor display changes — just update the layout math, don't touch windows.
+        // (The render loop uses cachedSlices, so updating those is enough.)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screensChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+        startupComplete = true
+    }
+
+    private var startupComplete = false
+
+    @objc private func screensChanged() {
+        guard startupComplete else { return }
+        DispatchQueue.main.async { [self] in
+            updateCachedLayout()
+        }
     }
 
     private func updateCachedLayout() {
