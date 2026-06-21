@@ -157,6 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func screensChanged() {
         guard startupComplete else { return }
+        mpvController?.savePosition()
         DispatchQueue.main.async { [self] in
             updateCachedLayout()
         }
