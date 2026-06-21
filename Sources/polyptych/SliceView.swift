@@ -11,12 +11,20 @@ final class SliceView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        self.wantsLayer = true
-        self.layer?.contentsGravity = .resize
+        setupLayer()
+    }
+
+    override init() {
+        super.init(frame: .zero)
+        setupLayer()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        setupLayer()
+    }
+
+    private func setupLayer() {
         self.wantsLayer = true
         self.layer?.contentsGravity = .resize
     }
