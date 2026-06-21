@@ -351,12 +351,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var fpsFrames: Int = 0
     private var fpsLastTime: CFAbsoluteTime = 0
+    private var renderAttempts: Int = 0
+    private var renderMisses: Int = 0
 
     private func renderFrame() {
         guard let mpv = mpvController else { return }
 
         let t0 = CFAbsoluteTimeGetCurrent()
-        guard let renderBuf = mpv.renderFrame() else { return }
+        guard let renderBuf = mpv.renderFrame() else { renderMisses += 1; return }
         let t1 = CFAbsoluteTimeGetCurrent()
 
         let renderW = Int(mpv.renderWidth)
@@ -408,12 +410,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if fpsLastTime == 0 { fpsLastTime = now }
             if now - fpsLastTime >= 1.0 {
                 let fps = Double(fpsFrames) / (now - fpsLastTime)
+                let hitRate = renderAttempts > 0
+                    ? String(format: "%.0f%%", Double(fpsFrames) / Double(renderAttempts) * 100)
+                    : "0%"
+                let vfps = mpv.readPropDouble("estimated-vf-fps") ?? 0
+                let drops = mpv.readPropInt64("frame-drop-count") ?? 0
                 let rMs = (t1 - t0) * 1000
                 let cgMs = (t2 - t1) * 1000
                 let sMs = (t3 - t2) * 1000
-                fputs("[polyptych] \(Int(round(fps)))fps | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
+                fputs("[polyptych] \(Int(round(fps)))fps hit:\(hitRate) vfps:\(Int(round(vfps))) drops:\(drops) | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
                 fpsFrames = 0
                 fpsLastTime = now
+                renderAttempts = 0
+                renderMisses = 0
             }
         }
     }

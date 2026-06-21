@@ -120,6 +120,20 @@ final class MPVController: @unchecked Sendable {
         cmd(["write-watch-later-config"])
     }
 
+    /// Read a double mpv property.
+    func readPropDouble(_ name: String) -> Double? {
+        guard let mpv else { return nil }
+        var val = Double(0)
+        return mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &val) >= 0 ? val : nil
+    }
+
+    /// Read an int64 mpv property.
+    func readPropInt64(_ name: String) -> Int64? {
+        guard let mpv else { return nil }
+        var val = Int64(0)
+        return mpv_get_property(mpv, name, MPV_FORMAT_INT64, &val) >= 0 ? val : nil
+    }
+
     // MARK: - Private
 
     private func setupSWRenderContext() {
