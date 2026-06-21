@@ -20,6 +20,10 @@ func parseArgs() -> InputMode? {
         }
     }
 
+    if debugMode {
+        fputs("[polyptych] \(polyptychVersion) (\(polyptychCommit))\n", stderr)
+    }
+
     guard let first = args.first else { return nil }
 
     if first == "--version" || first == "-v" {
