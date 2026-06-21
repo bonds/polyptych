@@ -243,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--default-search", "ytsearch",
-                            "--format", "bestvideo[height<=?1080]+bestaudio/best",
+                            "--format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]",
                             "--merge-output-format", "mp4",
                             "--output", "\(tmpDir)/%(id)s.%(ext)s",
                             "--print", "after_move:\(tmpDir)/%(id)s.%(ext)s",
