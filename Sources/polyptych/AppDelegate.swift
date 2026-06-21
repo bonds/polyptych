@@ -354,7 +354,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderFrame() {
         guard let mpv = mpvController else { return }
+
+        let t0 = CFAbsoluteTimeGetCurrent()
         guard let renderBuf = mpv.renderFrame() else { return }
+        let t1 = CFAbsoluteTimeGetCurrent()
 
         let renderW = Int(mpv.renderWidth)
         let renderH = Int(mpv.renderHeight)
@@ -365,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                              width: renderW,
                                              height: renderH,
                                              stride: stride) else { return }
+        let t2 = CFAbsoluteTimeGetCurrent()
 
         let bezelFrac = cachedConfig.bezelGaps.first ?? 0.075
 
@@ -381,7 +385,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let sliceH = Int(Double(s.size.height) * cachedSy)
 
             if sView.frameDelay > 0 {
-                // Deep-copy the slice portion for the delay queue
                 sView.enqueueDelayedSlice(from: renderBuf,
                                            stride: stride,
                                            sliceX: sliceX, sliceY: sliceY,
@@ -396,6 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sView.setSharedContents(fullImage, contentsRect: rect)
             }
         }
+        let t3 = CFAbsoluteTimeGetCurrent()
 
         // FPS counter — log once per second
         fpsFrames += 1
@@ -403,7 +407,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if fpsLastTime == 0 { fpsLastTime = now }
         if now - fpsLastTime >= 1.0 {
             let fps = Double(fpsFrames) / (now - fpsLastTime)
-            fputs("[polyptych] FPS: \(Int(round(fps))) | render: \(renderW)×\(renderH)\n", stderr)
+            let rMs = (t1 - t0) * 1000
+            let cgMs = (t2 - t1) * 1000
+            let sMs = (t3 - t2) * 1000
+            fputs("[polyptych] FPS: \(Int(round(fps))) | r:\(Int(rMs))ms cg:\(Int(cgMs))ms s:\(Int(sMs))ms | \(renderW)×\(renderH)\n", stderr)
             fpsFrames = 0
             fpsLastTime = now
         }
