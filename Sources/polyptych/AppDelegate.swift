@@ -326,9 +326,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Render
 
+    private let bitmapInfo = CGBitmapInfo(
+        rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+            | CGBitmapInfo.byteOrder32Little.rawValue
+    )
+
+    private func makeFullImage(from buffer: UnsafeMutablePointer<UInt8>,
+                                width: Int, height: Int, stride: Int) -> CGImage?
+    {
+        let data = NSData(bytesNoCopy: buffer, length: height * stride, freeWhenDone: false)
+        guard let provider = CGDataProvider(data: data) else { return nil }
+        return CGImage(
+            width: width, height: height,
+            bitsPerComponent: 8, bitsPerPixel: 32,
+            bytesPerRow: stride,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo,
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
+    }
+
+    private var fpsFrames: Int = 0
+    private var fpsLastTime: CFAbsoluteTime = 0
+
     private func renderFrame() {
         guard let mpv = mpvController else { return }
-        guard mpv.renderFrame() else { return }
+        guard let renderBuf = mpv.renderFrame() else { return }
+
+        let renderW = Int(mpv.renderWidth)
+        let renderH = Int(mpv.renderHeight)
+        let stride = Int(mpv.renderStride)
+
+        // Single CGImage shared across all non-delayed windows
+        guard let fullImage = makeFullImage(from: renderBuf,
+                                             width: renderW,
+                                             height: renderH,
+                                             stride: stride) else { return }
 
         let bezelFrac = cachedConfig.bezelGaps.first ?? 0.075
 
@@ -338,13 +374,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let crop = Double(s.width) * bezelFrac
             s.origin.x += crop
             s.size.width -= crop * 2
-            sView.updateSlice(
-                from: mpv,
-                sliceX: Int(Double(s.origin.x) * cachedSx),
-                sliceY: Int(Double(s.origin.y) * cachedSy),
-                sliceW: Int(Double(s.width) * cachedSx),
-                sliceH: Int(Double(s.height) * cachedSy)
-            )
+
+            let sliceX = Int(Double(s.origin.x) * cachedSx)
+            let sliceY = Int(Double(s.origin.y) * cachedSy)
+            let sliceW = Int(Double(s.size.width) * cachedSx)
+            let sliceH = Int(Double(s.size.height) * cachedSy)
+
+            if sView.frameDelay > 0 {
+                // Deep-copy the slice portion for the delay queue
+                sView.enqueueDelayedSlice(from: renderBuf,
+                                           stride: stride,
+                                           sliceX: sliceX, sliceY: sliceY,
+                                           sliceW: sliceW, sliceH: sliceH)
+            } else {
+                let rect = CGRect(
+                    x: CGFloat(sliceX) / CGFloat(renderW),
+                    y: 1.0 - CGFloat(sliceY + sliceH) / CGFloat(renderH),
+                    width: CGFloat(sliceW) / CGFloat(renderW),
+                    height: CGFloat(sliceH) / CGFloat(renderH)
+                )
+                sView.setSharedContents(fullImage, contentsRect: rect)
+            }
+        }
+
+        // FPS counter — log once per second
+        fpsFrames += 1
+        let now = CFAbsoluteTimeGetCurrent()
+        if fpsLastTime == 0 { fpsLastTime = now }
+        if now - fpsLastTime >= 1.0 {
+            let fps = Double(fpsFrames) / (now - fpsLastTime)
+            fputs("[polyptych] FPS: \(Int(round(fps))) | render: \(renderW)×\(renderH)\n", stderr)
+            fpsFrames = 0
+            fpsLastTime = now
         }
     }
 

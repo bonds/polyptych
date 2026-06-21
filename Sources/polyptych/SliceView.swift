@@ -1,14 +1,11 @@
 import AppKit
 
 final class SliceView: NSView {
-    private var buffers: [UnsafeMutablePointer<UInt8>] = []
-    private var writeIndex = 0
-    private var sliceW: Int = 0
-    private var sliceH: Int = 0
-
     var frameDelay: TimeInterval = 0
     var displayID: CGDirectDisplayID = 0
     var onFrameDisplayed: ((CGDirectDisplayID) -> Void)?
+
+    // Frame queue for delayed (native) screens
     private var frameQueue: [(time: CFAbsoluteTime, image: CGImage)] = []
 
     override var acceptsFirstResponder: Bool { true }
@@ -25,39 +22,33 @@ final class SliceView: NSView {
         self.layer?.contentsGravity = .resize
     }
 
-    func updateSlice(from controller: MPVController, sliceX: Int, sliceY: Int, sliceW: Int, sliceH: Int) {
+    /// Fast path: share a single full-frame CGImage across all windows,
+    /// each showing only its portion via `contentsRect`.
+    func setSharedContents(_ image: CGImage, contentsRect: CGRect) {
+        self.layer?.contents = image
+        self.layer?.contentsRect = contentsRect
+        if displayID != 0 { onFrameDisplayed?(displayID) }
+    }
+
+    /// Delayed path: deep-copy the slice portion and queue for later display.
+    func enqueueDelayedSlice(from buffer: UnsafeMutablePointer<UInt8>,
+                             stride: Int,
+                             sliceX: Int, sliceY: Int,
+                             sliceW: Int, sliceH: Int)
+    {
         let required = sliceW * sliceH * 4
-        if buffers.isEmpty {
-            buffers = [
-                UnsafeMutablePointer<UInt8>.allocate(capacity: required),
-                UnsafeMutablePointer<UInt8>.allocate(capacity: required),
-            ]
+        let pixelCopy = UnsafeMutablePointer<UInt8>.allocate(capacity: required)
+        let src = buffer + sliceY * stride + sliceX * 4
+        for row in 0..<sliceH {
+            let srcRow = src + row * stride
+            let dstRow = pixelCopy + row * (sliceW * 4)
+            dstRow.update(from: srcRow, count: sliceW * 4)
         }
-        self.sliceW = sliceW
-        self.sliceH = sliceH
-
-        writeIndex = (writeIndex + 1) % 2
-        let buf = buffers[writeIndex]
-
-        controller.readSlice(x: sliceX, y: sliceY, width: sliceW, height: sliceH,
-                             into: buf, destStride: sliceW * 4)
-
-        if frameDelay > 0 {
-            // For delayed screens, copy pixel data so each queued frame owns its buffer
-            let pixelCopy = UnsafeMutablePointer<UInt8>.allocate(capacity: required)
-            pixelCopy.update(from: buf, count: required)
-            let data = NSData(bytesNoCopy: pixelCopy, length: required, freeWhenDone: true)
-            guard let provider = CGDataProvider(data: data) else { return }
-            guard let cgImg = makeCGImage(provider: provider, w: sliceW, h: sliceH, stride: sliceW * 4) else { return }
-            frameQueue.append((CFAbsoluteTimeGetCurrent(), cgImg))
-            showNextDelayedFrame()
-        } else {
-            let data = NSData(bytesNoCopy: buf, length: required, freeWhenDone: false)
-            guard let provider = CGDataProvider(data: data) else { return }
-            guard let cgImg = makeCGImage(provider: provider, w: sliceW, h: sliceH, stride: sliceW * 4) else { return }
-            self.layer?.contents = cgImg
-            if displayID != 0 { onFrameDisplayed?(displayID) }
-        }
+        let data = NSData(bytesNoCopy: pixelCopy, length: required, freeWhenDone: true)
+        guard let provider = CGDataProvider(data: data) else { return }
+        guard let cgImg = makeCGImage(provider: provider, w: sliceW, h: sliceH, stride: sliceW * 4) else { return }
+        frameQueue.append((CFAbsoluteTimeGetCurrent(), cgImg))
+        showNextDelayedFrame()
     }
 
     private func showNextDelayedFrame() {
@@ -71,6 +62,7 @@ final class SliceView: NSView {
         }
         if let first = frameQueue.first, now - first.time >= frameDelay {
             self.layer?.contents = first.image
+            self.layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
             if displayID != 0 { onFrameDisplayed?(displayID) }
             frameQueue.removeFirst()
         }
@@ -93,6 +85,4 @@ final class SliceView: NSView {
             intent: .defaultIntent
         )
     }
-
-
 }

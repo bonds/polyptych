@@ -7,22 +7,31 @@ final class MPVController: @unchecked Sendable {
 
     let renderWidth: Int32
     let renderHeight: Int32
-    private(set) var renderStride: Int32
-    private let buffer: UnsafeMutablePointer<UInt8>
+    let renderStride: Int32
+
+    private let numBuffers = 3
+    private var buffers: [UnsafeMutablePointer<UInt8>] = []
+    private var renderIndex = 0
+
+    /// The buffer that was just rendered into — safe from overwrite for ~2 more frames.
+    var latestRenderBuffer: UnsafeMutablePointer<UInt8> {
+        buffers[(renderIndex - 1 + numBuffers) % numBuffers]
+    }
 
     init(unionWidth: Int32, unionHeight: Int32) {
         self.renderWidth = unionWidth
         self.renderHeight = unionHeight
         self.renderStride = unionWidth * 4
-        self.buffer = UnsafeMutablePointer<UInt8>.allocate(
-            capacity: Int(unionHeight) * Int(unionWidth * 4)
-        )
+        let capacity = Int(unionHeight) * Int(unionWidth * 4)
+        self.buffers = (0..<numBuffers).map { _ in
+            UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
+        }
     }
 
     deinit {
         if let rc = renderContext { mpv_render_context_free(rc) }
         if let m = mpv { mpv_terminate_destroy(m) }
-        buffer.deallocate()
+        for buf in buffers { buf.deallocate() }
     }
 
     func start(file filePath: String, isURL: Bool = false) {
@@ -79,31 +88,32 @@ final class MPVController: @unchecked Sendable {
 
     // MARK: - Render
 
-    func renderFrame() -> Bool {
-        guard let rc = renderContext else { return false }
+    /// Renders a new frame into the current triple buffer.
+    /// Returns the buffer pointer just rendered into (safe from overwrite
+    /// for ~2 more frames at 60fps).
+    func renderFrame() -> UnsafeMutablePointer<UInt8>? {
+        guard let rc = renderContext else { return nil }
+        let currentBuf = buffers[renderIndex]
         var swSize: [Int32] = [renderWidth, renderHeight]
         var swStride = renderStride
 
         let result = "bgra".withCString { fmt in
-            var params: [mpv_render_param] = [
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: &swSize),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &swStride),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: buffer),
-                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-            ]
-            return mpv_render_context_render(rc, &params)
+            withUnsafeMutablePointer(to: &swSize) { sizePtr in
+                withUnsafeMutablePointer(to: &swStride) { stridePtr in
+                    var params: [mpv_render_param] = [
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: sizePtr),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: stridePtr),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
+                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+                    ]
+                    return mpv_render_context_render(rc, &params)
+                }
+            }
         }
-        return result >= 0
-    }
-
-    func readSlice(x: Int, y: Int, width: Int, height: Int, into dest: UnsafeMutablePointer<UInt8>, destStride: Int) {
-        let srcStride = Int(renderStride)
-        for row in 0..<height {
-            let srcRow = buffer + (y + row) * srcStride + x * 4
-            let dstRow = dest + row * destStride
-            dstRow.update(from: srcRow, count: width * 4)
-        }
+        guard result >= 0 else { return nil }
+        renderIndex = (renderIndex + 1) % numBuffers
+        return buffers[(renderIndex - 1 + numBuffers) % numBuffers]
     }
 
     /// Read mpv's A/V sync value. Positive = audio ahead of video.
