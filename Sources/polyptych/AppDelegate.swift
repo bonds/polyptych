@@ -369,7 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         renderAttempts += 1
         let fStart = CFAbsoluteTimeGetCurrent()
 
-        guard mpv.renderFrame() else {
+        guard let renderBuf = mpv.renderFrame() else {
             renderMisses += 1
             if debugMode { logFrame(fStart, CFAbsoluteTimeGetCurrent(), false, mpv: mpv) }
             return

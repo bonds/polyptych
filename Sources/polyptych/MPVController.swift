@@ -87,18 +87,22 @@ final class MPVController: @unchecked Sendable {
     func renderFrame() -> UnsafeMutablePointer<UInt8>? {
         guard let rc = renderContext else { return nil }
         let currentBuf = buffers[renderIndex]
-        var swSize: [Int32] = [renderWidth, renderHeight]
-        var swStride = renderStride
 
         let result = "bgra".withCString { fmt in
-            var params: [mpv_render_param] = [
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: &swSize),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &swStride),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
-                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-            ]
-            return mpv_render_context_render(rc, &params)
+            var swSize: [Int32] = [renderWidth, renderHeight]
+            var swStride = renderStride
+            return swSize.withUnsafeMutableBufferPointer { sizeBuf in
+                withUnsafeMutablePointer(to: &swStride) { stridePtr in
+                    var params: [mpv_render_param] = [
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: sizeBuf.baseAddress),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: stridePtr),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
+                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+                    ]
+                    return mpv_render_context_render(rc, &params)
+                }
+            }
         }
         guard result >= 0 else { return nil }
         renderIndex = (renderIndex + 1) % numBuffers
