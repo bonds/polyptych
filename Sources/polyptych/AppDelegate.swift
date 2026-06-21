@@ -119,7 +119,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             // IOSurface as layer contents — set once, CA auto-picks up pixel changes
             view.layer?.contents = mpv.surface
-            view.layer?.contentsRect = contentsRect(for: i)
+            let cr = contentsRect(for: i)
+            view.layer?.contentsRect = cr
+            if debugMode {
+                fputs("[polyptych] window \(i): frame=\(s.frame) displayID=\(view.displayID) contentsRect=\(cr)\n", stderr)
+            }
         }
 
         NSApp.activate(ignoringOtherApps: true)
@@ -375,6 +379,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // IOSurface pixels are now updated — CA auto-picks up the change.
         // Only the delayed screen needs explicit handling (deep-copy for queue).
         for (i, sView) in sliceViews.enumerated() {
+            if debugMode && fpsFrames == 0 {
+                fputs("[polyptych] render \(i): delay=\(sView.frameDelay)\n", stderr)
+            }
             guard i < cachedSlices.count else { break }
             if sView.frameDelay > 0 {
                 let s = bezelCroppedSlice(i)
