@@ -44,8 +44,7 @@
 
               # Native messaging host for Firefox extension
               mkdir -p $out/bin
-              substitute ${./extension/firefox/native/polyptych-yt.sh} $out/bin/polyptych-yt \
-                --replace-fail '@polyptych_bin@' "$out/bin/polyptych"
+              cp ${./extension/firefox/native/polyptych-yt.sh} $out/bin/polyptych-yt
               chmod +x $out/bin/polyptych-yt
 
               mkdir -p $out/lib/mozilla/native-messaging-hosts
@@ -60,6 +59,7 @@
                 --replace-fail '@polyptych_bin@' "$out/bin/polyptych"
               chmod +x $out/bin/polyptych-yt-watcher
 
+              mkdir -p $out/lib/LaunchAgents
               substitute ${./extension/firefox/native/com.polyptych.watcher.plist} \
                 $out/lib/LaunchAgents/com.polyptych.watcher.plist \
                 --replace-fail '@watcher_bin@' "$out/bin/polyptych-yt-watcher"

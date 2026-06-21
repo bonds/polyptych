@@ -14,6 +14,11 @@
     return null;
   }
 
+  function pauseYoutube() {
+    const video = document.querySelector("video");
+    if (video && !video.paused) video.pause();
+  }
+
   function injectButton() {
     const existing = document.querySelector(`.${POLYPTYCH_CLASS}`);
     if (existing) return;
@@ -22,8 +27,7 @@
     if (!rightControls) return;
 
     const btn = document.createElement("button");
-    btn.className =
-      "ytp-button " + POLYPTYCH_CLASS;
+    btn.className = "ytp-button " + POLYPTYCH_CLASS;
     btn.title = "Play on all monitors with polyptych";
     btn.innerHTML = `
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -34,29 +38,40 @@
 
     btn.addEventListener("click", () => {
       const url = getVideoUrl();
-      if (url) {
-        btn.disabled = true;
-        btn.title = "Launching polyptych…";
-        chrome.runtime.sendMessage({ type: "play", url }, (resp) => {
-          if (chrome.runtime.lastError) {
-            btn.title = "Error: " + chrome.runtime.lastError.message;
-            setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
-            return;
-          }
-          if (resp && resp.error) {
-            btn.title = "Error: " + resp.error;
-            setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
-            return;
-          }
-          setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 3000);
+      if (!url) return;
+
+      pauseYoutube();
+      btn.disabled = true;
+      btn.title = "Downloading… (0%)";
+
+      chrome.runtime.sendMessage({ type: "play", url }, (resp) => {
+        if (chrome.runtime.lastError || (resp && resp.error)) {
+          btn.title = "Error starting polyptych";
+          setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
+          return;
+        }
+        // Progress: update tooltip as time passes
+        const phases = [
+          [5,  "Downloading… (25%)"],
+          [15, "Downloading… (50%)"],
+          [25, "Downloading… (75%)"],
+          [35, "Starting playback…"],
+          [45, "Playing on all monitors"],
+        ];
+        phases.forEach(([delay, text], i) => {
+          setTimeout(() => {
+            btn.title = text;
+            if (i === phases.length - 1) {
+              setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
+            }
+          }, delay * 1000);
         });
-      }
+      });
     });
 
     rightControls.prepend(btn);
   }
 
-  // YouTube is an SPA — re-inject on navigation
   injectButton();
   new MutationObserver(() => injectButton()).observe(document.body, { childList: true, subtree: true });
 })();

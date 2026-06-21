@@ -1,39 +1,48 @@
 let port = null;
+let statusTimer = null;
 
 function connect() {
   try {
-    console.log("polyptych: connecting to native host...");
     port = chrome.runtime.connectNative("com.polyptych.youtube");
     port.onMessage.addListener((msg) => {
-      console.log("polyptych: received message from host:", msg);
+      console.log("polyptych: host message:", msg);
     });
     port.onDisconnect.addListener(() => {
-      const err = chrome.runtime.lastError;
-      console.log("polyptych: disconnected", err ? err.message : "");
+      console.log("polyptych: disconnected");
       port = null;
     });
-    console.log("polyptych: connected");
   } catch (e) {
-    console.error("polyptych: connectNative threw:", e);
+    console.error("polyptych: connect failed:", e);
     port = null;
   }
 }
 
+function broadcastStatus() {
+  // Read the status file written by the native host
+  fetch("file:///tmp/polyptych-yt-status")
+    .then(r => r.text())
+    .then(text => {
+      const status = text.trim();
+      chrome.runtime.sendMessage({ type: "status", status }).catch(() => {});
+    })
+    .catch(() => {});
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "play") {
-    console.log("polyptych: play requested:", msg.url);
     if (!port) connect();
     if (!port) {
-      console.error("polyptych: failed to connect to native host");
       sendResponse({ error: "native host not found" });
       return;
     }
     try {
       port.postMessage({ url: msg.url });
-      console.log("polyptych: message sent");
       sendResponse({ ok: true });
+      // Poll for status
+      if (statusTimer) clearInterval(statusTimer);
+      statusTimer = setInterval(broadcastStatus, 2000);
+      setTimeout(() => { if (statusTimer) clearInterval(statusTimer); statusTimer = null; }, 60000);
     } catch (e) {
-      console.error("polyptych: postMessage failed:", e);
       sendResponse({ error: String(e) });
     }
   }
