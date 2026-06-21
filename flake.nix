@@ -18,14 +18,15 @@
         {
           default = pkgs.stdenv.mkDerivation {
             pname = "polyptych";
-            version = "0.2.2";
+            version = "0.3.0";
             src = self;
 
-            buildInputs = with pkgs; [
-              swift
-              swiftpm
-              libmpv
-            ];
+          buildInputs = with pkgs; [
+            swift
+            swiftpm
+            libmpv
+            zip
+          ];
 
             buildPhase = ''
               swift build -c release --disable-sandbox \
@@ -63,6 +64,11 @@
               substitute ${./extension/firefox/native/com.polyptych.watcher.plist} \
                 $out/lib/LaunchAgents/com.polyptych.watcher.plist \
                 --replace-fail '@watcher_bin@' "$out/bin/polyptych-yt-watcher"
+
+              # Firefox extension .xpi
+              mkdir -p $out/lib/firefox/extensions
+              (cd ${./extension/firefox} && zip -r $out/lib/firefox/extensions/polyptych@bonds.github.io.xpi \
+                manifest.json content.js background.js icon.svg)
             '';
 
             meta = with pkgs.lib; {
