@@ -1,4 +1,5 @@
 import AppKit
+import IOSurface
 import Clibmpv
 
 final class MPVController: @unchecked Sendable {
@@ -8,25 +9,31 @@ final class MPVController: @unchecked Sendable {
     let renderWidth: Int32
     let renderHeight: Int32
     let renderStride: Int32
-
-    private let numBuffers = 3
-    private var buffers: [UnsafeMutablePointer<UInt8>] = []
-    private var renderIndex = 0
+    let surface: IOSurface
 
     init(unionWidth: Int32, unionHeight: Int32) {
         self.renderWidth = unionWidth
         self.renderHeight = unionHeight
         self.renderStride = unionWidth * 4
-        let capacity = Int(unionHeight) * Int(unionWidth * 4)
-        self.buffers = (0..<numBuffers).map { _ in
-            UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
+        let w = Int(unionWidth)
+        let h = Int(unionHeight)
+        let props: [IOSurfacePropertyKey: Any] = [
+            .width: w,
+            .height: h,
+            .pixelFormat: kCVPixelFormatType_32BGRA,
+            .bytesPerElement: 4,
+            .bytesPerRow: w * 4,
+            .allocSize: h * w * 4,
+        ]
+        guard let s = IOSurface(properties: props) else {
+            fatalError("IOSurface creation failed")
         }
+        self.surface = s
     }
 
     deinit {
         if let rc = renderContext { mpv_render_context_free(rc) }
         if let m = mpv { mpv_terminate_destroy(m) }
-        for buf in buffers { buf.deallocate() }
     }
 
     func start(file filePath: String, isURL: Bool = false) {
@@ -83,12 +90,13 @@ final class MPVController: @unchecked Sendable {
 
     // MARK: - Render
 
-    /// Renders a new frame into the current triple buffer.
-    /// Returns the buffer pointer just rendered into (safe from overwrite
-    /// for ~2 more frames at 60fps).
-    func renderFrame() -> UnsafeMutablePointer<UInt8>? {
-        guard let rc = renderContext else { return nil }
-        let currentBuf = buffers[renderIndex]
+    /// Render a new frame into the IOSurface. Returns true if a new frame was rendered.
+    func renderFrame() -> Bool {
+        guard let rc = renderContext else { return false }
+        surface.lock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil)
+        defer { surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
+
+        let ptr = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
         var swSize: [Int32] = [renderWidth, renderHeight]
         var swStride = renderStride
 
@@ -97,37 +105,45 @@ final class MPVController: @unchecked Sendable {
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: &swSize),
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &swStride),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: ptr),
                 mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
             ]
             return mpv_render_context_render(rc, &params)
         }
-        guard result >= 0 else { return nil }
-        renderIndex = (renderIndex + 1) % numBuffers
-        return buffers[(renderIndex - 1 + numBuffers) % numBuffers]
+        return result >= 0
     }
 
-    /// Read mpv's A/V sync value. Positive = audio ahead of video.
+    /// Deep-copy a rectangular slice from the IOSurface.
+    func copySlice(x: Int, y: Int, width: Int, height: Int, into dest: UnsafeMutablePointer<UInt8>, destStride: Int) {
+        surface.lock(options: IOSurfaceLockOptions(rawValue: 1), seed: nil) // kIOSurfaceLockReadOnly
+        defer { surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
+        let src = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
+        let srcStride = Int(renderStride)
+        for row in 0..<height {
+            let srcRow = src + (y + row) * srcStride + x * 4
+            let dstRow = dest + row * destStride
+            dstRow.update(from: srcRow, count: width * 4)
+        }
+    }
+
+    // MARK: - Properties
+
     func readAVSync() -> Double? {
         guard let mpv else { return nil }
         var val = Double(0)
-        let result = mpv_get_property(mpv, "avsync", MPV_FORMAT_DOUBLE, &val)
-        return result >= 0 ? val : nil
+        return mpv_get_property(mpv, "avsync", MPV_FORMAT_DOUBLE, &val) >= 0 ? val : nil
     }
 
-    /// Save playback position for resume.
     func savePosition() {
         cmd(["write-watch-later-config"])
     }
 
-    /// Read a double mpv property.
     func readPropDouble(_ name: String) -> Double? {
         guard let mpv else { return nil }
         var val = Double(0)
         return mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &val) >= 0 ? val : nil
     }
 
-    /// Read an int64 mpv property.
     func readPropInt64(_ name: String) -> Int64? {
         guard let mpv else { return nil }
         var val = Int64(0)
