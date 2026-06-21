@@ -375,7 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Create a shared CGImage from the IOSurface for all non-delayed windows.
+        // Single shared CGImage from the render buffer for all non-delayed windows.
         let stride = Int(mpv.renderStride)
         let rw = Int(mpv.renderWidth)
         let rh = Int(mpv.renderHeight)
@@ -383,13 +383,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
                 | CGBitmapInfo.byteOrder32Little.rawValue
         )
-
-        let sharedCGImage: CGImage? = {
-            mpv.surface.lock(options: IOSurfaceLockOptions(rawValue: 1), seed: nil) // kIOSurfaceLockReadOnly
-            defer { mpv.surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
-            let ptr = mpv.surface.baseAddress.assumingMemoryBound(to: UInt8.self)
-            let data = NSData(bytesNoCopy: ptr, length: rh * stride, freeWhenDone: false)
-            guard let provider = CGDataProvider(data: data) else { return nil }
+        let bufData = NSData(bytesNoCopy: renderBuf, length: rh * stride, freeWhenDone: false)
+        let sharedImage: CGImage? = {
+            guard let provider = CGDataProvider(data: bufData) else { return nil }
             return CGImage(
                 width: rw, height: rh,
                 bitsPerComponent: 8, bitsPerPixel: 32,
@@ -410,7 +406,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard i < cachedSlices.count else { break }
 
             if sView.frameDelay > 0 {
-                // Delayed screen: deep-copy the slice and queue it
                 let s = bezelCroppedSlice(i)
                 let sliceW = Int(Double(s.width) * cachedSx)
                 let sliceH = Int(Double(s.size.height) * cachedSy)
@@ -434,7 +429,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     intent: .defaultIntent
                 ) else { continue }
                 sView.enqueueDelayedImage(cgImg)
-            } else if let cg = sharedCGImage {
+            } else if let cg = sharedImage {
                 sView.layer?.contents = cg
             }
         }

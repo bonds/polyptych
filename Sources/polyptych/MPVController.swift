@@ -1,5 +1,4 @@
 import AppKit
-import IOSurface
 import Clibmpv
 
 final class MPVController: @unchecked Sendable {
@@ -9,31 +8,25 @@ final class MPVController: @unchecked Sendable {
     let renderWidth: Int32
     let renderHeight: Int32
     let renderStride: Int32
-    let surface: IOSurface
+
+    private let numBuffers = 3
+    private var buffers: [UnsafeMutablePointer<UInt8>] = []
+    private var renderIndex = 0
 
     init(unionWidth: Int32, unionHeight: Int32) {
         self.renderWidth = unionWidth
         self.renderHeight = unionHeight
         self.renderStride = unionWidth * 4
-        let w = Int(unionWidth)
-        let h = Int(unionHeight)
-        let props: [IOSurfacePropertyKey: Any] = [
-            .width: w,
-            .height: h,
-            .pixelFormat: kCVPixelFormatType_32BGRA,
-            .bytesPerElement: 4,
-            .bytesPerRow: w * 4,
-            .allocSize: h * w * 4,
-        ]
-        guard let s = IOSurface(properties: props) else {
-            fatalError("IOSurface creation failed")
+        let capacity = Int(unionHeight) * Int(unionWidth * 4)
+        self.buffers = (0..<numBuffers).map { _ in
+            UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
         }
-        self.surface = s
     }
 
     deinit {
         if let rc = renderContext { mpv_render_context_free(rc) }
         if let m = mpv { mpv_terminate_destroy(m) }
+        for buf in buffers { buf.deallocate() }
     }
 
     func start(file filePath: String, isURL: Bool = false) {
@@ -90,13 +83,10 @@ final class MPVController: @unchecked Sendable {
 
     // MARK: - Render
 
-    /// Render a new frame into the IOSurface. Returns true if a new frame was rendered.
-    func renderFrame() -> Bool {
-        guard let rc = renderContext else { return false }
-        surface.lock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil)
-        defer { surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
-
-        let ptr = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
+    /// Renders into the triple buffer, returns the buffer pointer (nil if no new frame).
+    func renderFrame() -> UnsafeMutablePointer<UInt8>? {
+        guard let rc = renderContext else { return nil }
+        let currentBuf = buffers[renderIndex]
         var swSize: [Int32] = [renderWidth, renderHeight]
         var swStride = renderStride
 
@@ -105,22 +95,22 @@ final class MPVController: @unchecked Sendable {
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: &swSize),
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: fmt)),
                 mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &swStride),
-                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: ptr),
+                mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: currentBuf),
                 mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
             ]
             return mpv_render_context_render(rc, &params)
         }
-        return result >= 0
+        guard result >= 0 else { return nil }
+        renderIndex = (renderIndex + 1) % numBuffers
+        return buffers[(renderIndex - 1 + numBuffers) % numBuffers]
     }
 
-    /// Deep-copy a rectangular slice from the IOSurface.
+    /// Deep-copy a rectangular slice from the latest render buffer.
     func copySlice(x: Int, y: Int, width: Int, height: Int, into dest: UnsafeMutablePointer<UInt8>, destStride: Int) {
-        surface.lock(options: IOSurfaceLockOptions(rawValue: 1), seed: nil) // kIOSurfaceLockReadOnly
-        defer { surface.unlock(options: IOSurfaceLockOptions(rawValue: 0), seed: nil) }
-        let src = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
+        let buf = buffers[(renderIndex - 1 + numBuffers) % numBuffers]
         let srcStride = Int(renderStride)
         for row in 0..<height {
-            let srcRow = src + (y + row) * srcStride + x * 4
+            let srcRow = buf + (y + row) * srcStride + x * 4
             let dstRow = dest + row * destStride
             dstRow.update(from: srcRow, count: width * 4)
         }
