@@ -3,15 +3,20 @@
 #
 # Prerequisites:
 #   1. Create API credentials at https://addons.mozilla.org/en-US/developers/addon/api/key/
-#   2. Set environment variables:
-#      export AMO_JWT_ISSUER="user:12345678"
-#      export AMO_JWT_SECRET="..."
+#   2. Save to ~/.config/polyptych/.env:
+#        AMO_JWT_ISSUER="user:12345678"
+#        AMO_JWT_SECRET="..."
 #
 # Then run this script from the extension/firefox/ directory.
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
+
+ENV_FILE="${HOME}/.config/polyptych/.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
 
 if [ -z "${AMO_JWT_ISSUER:-}" ] || [ -z "${AMO_JWT_SECRET:-}" ]; then
   echo "Error: AMO_JWT_ISSUER and AMO_JWT_SECRET must be set."
