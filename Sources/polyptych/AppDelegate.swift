@@ -95,7 +95,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mpv = MPVController(unionWidth: renderW, unionHeight: renderH)
         self.mpvController = mpv
 
-        // Pre-compute layout for contentsRect calculations
         updateCachedLayout()
 
         let (nativeScreens, dlScreens) = DisplayDetector.classifyDisplays()
@@ -117,11 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 view.frameDelay = frameDelay
             }
 
-            // Set contentsRect once (persists across CGImage updates)
-            let cr = contentsRect(for: i)
-            view.layer?.contentsRect = cr
             if debugMode {
-                fputs("[polyptych] window \(i): frame=\(s.frame) displayID=\(view.displayID) contentsRect=\(cr)\n", stderr)
+                fputs("[polyptych] window \(i): frame=\(s.frame) displayID=\(view.displayID)\n", stderr)
             }
         }
 
@@ -332,31 +328,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Layout helpers
-
-    /// Normalized contents rect for the i-th slice (with bezel crop applied).
-    private func contentsRect(for index: Int) -> CGRect {
-        guard index < cachedSlices.count,
-              let mpv = mpvController else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
-        let renderW = CGFloat(mpv.renderWidth)
-        let renderH = CGFloat(mpv.renderHeight)
-        let bezelFrac = cachedConfig.bezelGaps.first ?? 0.075
-        var s = cachedSlices[index].1
-        let crop = Double(s.width) * bezelFrac
-        s.origin.x += crop
-        s.size.width -= crop * 2
-        let sx = CGFloat(Double(s.origin.x) * cachedSx)
-        let sy = CGFloat(Double(s.origin.y) * cachedSy)
-        let sw = CGFloat(Double(s.size.width) * cachedSx)
-        let sh = CGFloat(Double(s.size.height) * cachedSy)
-        return CGRect(
-            x: sx / renderW,
-            y: 1.0 - (sy + sh) / renderH,
-            width: sw / renderW,
-            height: sh / renderH
-        )
-    }
-
     // MARK: - Render
 
     private var fpsFrames: Int = 0
@@ -375,29 +346,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Single shared CGImage from the render buffer for all non-delayed windows.
-        let stride = Int(mpv.renderStride)
-        let rw = Int(mpv.renderWidth)
-        let rh = Int(mpv.renderHeight)
+        // Per-slice CGImages for each screen (original approach, avoids DisplayLink CA commit issues with contentsRect).
+        let srcStride = Int(mpv.renderStride)
+        let srcBuf = renderBuf
         let bmi = CGBitmapInfo(
             rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
                 | CGBitmapInfo.byteOrder32Little.rawValue
         )
-        let bufData = NSData(bytesNoCopy: renderBuf, length: rh * stride, freeWhenDone: false)
-        let sharedImage: CGImage? = {
-            guard let provider = CGDataProvider(data: bufData) else { return nil }
-            return CGImage(
-                width: rw, height: rh,
-                bitsPerComponent: 8, bitsPerPixel: 32,
-                bytesPerRow: stride,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: bmi,
-                provider: provider,
-                decode: nil,
-                shouldInterpolate: true,
-                intent: .defaultIntent
-            )
-        }()
+        let renderW = Int(mpv.renderWidth)
 
         for (i, sView) in sliceViews.enumerated() {
             if debugMode && fpsFrames == 0 {
@@ -405,32 +361,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             guard i < cachedSlices.count else { break }
 
+            let s = bezelCroppedSlice(i)
+            let sliceW = Int(Double(s.width) * cachedSx)
+            let sliceH = Int(Double(s.size.height) * cachedSy)
+            let sliceX = Int(Double(s.origin.x) * cachedSx)
+            let sliceY = Int(Double(s.origin.y) * cachedSy)
+            let required = sliceW * sliceH * 4
+            let pixelCopy = UnsafeMutablePointer<UInt8>.allocate(capacity: required)
+            // Copy slice rows from the render buffer
+            for row in 0..<sliceH {
+                let srcRow = srcBuf + (sliceY + row) * srcStride + sliceX * 4
+                let dstRow = pixelCopy + row * (sliceW * 4)
+                dstRow.update(from: srcRow, count: sliceW * 4)
+            }
+            let data = NSData(bytesNoCopy: pixelCopy, length: required, freeWhenDone: true)
+            guard let provider = CGDataProvider(data: data) else { continue }
+            guard let cgImg = CGImage(
+                width: sliceW, height: sliceH,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: sliceW * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: bmi,
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: true,
+                intent: .defaultIntent
+            ) else { continue }
+
             if sView.frameDelay > 0 {
-                let s = bezelCroppedSlice(i)
-                let sliceW = Int(Double(s.width) * cachedSx)
-                let sliceH = Int(Double(s.size.height) * cachedSy)
-                let sliceX = Int(Double(s.origin.x) * cachedSx)
-                let sliceY = Int(Double(s.origin.y) * cachedSy)
-                let required = sliceW * sliceH * 4
-                let pixelCopy = UnsafeMutablePointer<UInt8>.allocate(capacity: required)
-                mpv.copySlice(x: sliceX, y: sliceY, width: sliceW, height: sliceH,
-                               into: pixelCopy, destStride: sliceW * 4)
-                let data = NSData(bytesNoCopy: pixelCopy, length: required, freeWhenDone: true)
-                guard let provider = CGDataProvider(data: data) else { continue }
-                guard let cgImg = CGImage(
-                    width: sliceW, height: sliceH,
-                    bitsPerComponent: 8, bitsPerPixel: 32,
-                    bytesPerRow: sliceW * 4,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: bmi,
-                    provider: provider,
-                    decode: nil,
-                    shouldInterpolate: true,
-                    intent: .defaultIntent
-                ) else { continue }
                 sView.enqueueDelayedImage(cgImg)
-            } else if let cg = sharedImage {
-                sView.layer?.contents = cg
+            } else {
+                sView.layer?.contents = cgImg
+                sView.layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
             }
         }
 
