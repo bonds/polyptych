@@ -141,8 +141,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Cache display layout for the render loop
         updateCachedLayout()
-
-        startupComplete = true
     }
 
     private func updateCachedLayout() {
