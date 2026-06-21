@@ -118,7 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             // Set contentsRect once (persists across CGImage updates)
-            view.layer?.contentsRect = contentsRect(for: i)
+            let cr = contentsRect(for: i)
+            view.layer?.contentsRect = cr
             if debugMode {
                 fputs("[polyptych] window \(i): frame=\(s.frame) displayID=\(view.displayID) contentsRect=\(cr)\n", stderr)
             }
