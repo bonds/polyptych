@@ -76,6 +76,32 @@ cropped at each bezel gap (default 7.5% per side) so the image stays
 proportional across the physical gap between screens rather than appearing
 stretched.
 
+## Firefox extension
+
+Adds a button to the YouTube player that launches the video in polyptych.
+
+### Install
+
+1. Build the signed `.xpi` (requires [Mozilla API credentials](https://addons.mozilla.org/en-US/developers/addon/api/key/)):
+   ```bash
+   cd extension/firefox
+   source ~/.config/polyptych/.env   # sets AMO_JWT_ISSUER and AMO_JWT_SECRET
+   nix run nixpkgs#web-ext -- sign --channel=unlisted --source-dir=.
+   ```
+2. In `about:addons` → gear icon → Install Add-on From File…, select the `.xpi`
+3. **Enable both optional permissions** for `*://www.youtube.com` and `*://youtu.be`
+4. **(Zen Browser)** Set "Run on sites with restrictions" to **Allow**
+5. The 3-bar button appears next to YouTube's control bar
+
+### Native messaging
+
+The extension sends the video URL via `chrome.runtime.connectNative` to
+`com.polyptych.youtube`, which writes it to `/tmp/polyptych-yt-request`.
+A LaunchAgent watcher (`com.polyptych.watcher`) polls this file and launches
+polyptych. The nix package installs both the native host and the LaunchAgent.
+
+Requires `yt-dlp` on `$PATH` (the LaunchAgent sets `PATH` explicitly).
+
 ## License
 
 MIT
