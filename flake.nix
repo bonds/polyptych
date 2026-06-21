@@ -52,7 +52,7 @@
               substitute ${./extension/firefox/native/com.polyptych.youtube.json} \
                 $out/lib/mozilla/native-messaging-hosts/com.polyptych.youtube.json \
                 --replace-fail '"path": "/run/current-system/sw/bin/polyptych-yt"' \
-                             '"path": "$out/bin/polyptych-yt"'
+                             '"path": "${placeholder "out"}/bin/polyptych-yt"'
             '';
 
             meta = with pkgs.lib; {
