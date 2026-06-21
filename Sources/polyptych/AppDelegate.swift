@@ -356,6 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderFrame() {
         guard let mpv = mpvController else { return }
+        renderAttempts += 1
 
         let t0 = CFAbsoluteTimeGetCurrent()
         guard let renderBuf = mpv.renderFrame() else { renderMisses += 1; return }
