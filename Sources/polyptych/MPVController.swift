@@ -162,6 +162,64 @@ final class MPVController: @unchecked Sendable {
         return mpv_get_property(mpv, name, MPV_FORMAT_INT64, &val) >= 0 ? val : nil
     }
 
+    /// Log available tracks and re-select audio/sub matching language preferences.
+    func reselectTracks() {
+        // Log all tracks in debug mode
+        if debugMode {
+            let count = readPropInt64("track-list/count") ?? 0
+            for i in 0..<count {
+                let type = readPropertyString("track-list/\(i)/type") ?? "?"
+                let lang = readPropertyString("track-list/\(i)/lang") ?? "?"
+                let sel = readPropertyString("track-list/\(i)/selected") ?? "?"
+                let id = readPropInt64("track-list/\(i)/id") ?? 0
+                fputs("[polyptych] track \(id): \(type) lang=\(lang) sel=\(sel)\n", stderr)
+            }
+        }
+
+        // Manually select audio track matching audioLanguages
+        let aLangs = readPropertyString("options/alang") ?? ""
+        if !aLangs.isEmpty {
+            let prefs = aLangs.split(separator: ",").map(String.init)
+            if let matchingId = findTrack(type: "audio", languages: prefs) {
+                cmd(["set", "aid", String(matchingId)])
+            } else {
+                cmd(["set", "aid", "auto"])
+            }
+        }
+
+        // Manually select sub track matching subtitleLanguages
+        let sLangs = readPropertyString("options/slang") ?? ""
+        if !sLangs.isEmpty {
+            let prefs = sLangs.split(separator: ",").map(String.init)
+            if let matchingId = findTrack(type: "sub", languages: prefs) {
+                cmd(["set", "sid", String(matchingId)])
+            } else {
+                cmd(["set", "sid", "auto"])
+            }
+        }
+    }
+
+    /// Find the first track of `type` whose language matches one of `languages`.
+    private func findTrack(type: String, languages: [String]) -> Int64? {
+        let count = readPropInt64("track-list/count") ?? 0
+        for i in 0..<count {
+            guard readPropertyString("track-list/\(i)/type") == type else { continue }
+            guard let lang = readPropertyString("track-list/\(i)/lang"), !lang.isEmpty else { continue }
+            if languages.contains(where: { lang.hasPrefix($0) || $0.hasPrefix(lang) }) {
+                return readPropInt64("track-list/\(i)/id")
+            }
+        }
+        // Fallback: unlabeled track of the right type
+        for i in 0..<count {
+            guard readPropertyString("track-list/\(i)/type") == type else { continue }
+            let lang = readPropertyString("track-list/\(i)/lang") ?? ""
+            if lang.isEmpty {
+                return readPropInt64("track-list/\(i)/id")
+            }
+        }
+        return nil
+    }
+
     // MARK: - Private
 
     var onNeedsRender: (() -> Void)?
@@ -195,11 +253,9 @@ final class MPVController: @unchecked Sendable {
                 break
             }
             if event.event_id == MPV_EVENT_FILE_LOADED {
-                // Reset aid/sid on main thread — calling mpv_command from within
-                // the event loop causes a deadlock.
                 DispatchQueue.main.async { [weak self] in
-                    self?.cmd(["set", "aid", "auto"])
-                    self?.cmd(["set", "sid", "auto"])
+                    guard let s = self else { return }
+                    s.reselectTracks()
                 }
             }
             if event.event_id == MPV_EVENT_END_FILE,
