@@ -29,7 +29,8 @@ final class MPVController: @unchecked Sendable {
         for buf in buffers { buf.deallocate() }
     }
 
-    func start(file filePath: String, isURL: Bool = false) {
+    func start(file filePath: String, isURL: Bool = false,
+               audioLanguages: [String] = [], subtitleLanguages: [String] = []) {
         guard let mpv = mpv_create() else { fatalError("mpv_create failed") }
         self.mpv = mpv
 
@@ -42,8 +43,6 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
         mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]")
-        mpv_set_option_string(mpv, "alang", "zh,en")
-        mpv_set_option_string(mpv, "slang", "en")
         mpv_set_option_string(mpv, "sub-auto", "all")
         mpv_set_option_string(mpv, "sub-visibility", "no")
 
@@ -62,6 +61,13 @@ final class MPVController: @unchecked Sendable {
 
         mpv_set_option_string(mpv, "save-position-on-quit", "yes")
         mpv_set_option_string(mpv, "watch-later-dir", "\(NSHomeDirectory())/.config/polyptych/watch_later")
+
+        if !audioLanguages.isEmpty {
+            mpv_set_option_string(mpv, "alang", audioLanguages.joined(separator: ","))
+        }
+        if !subtitleLanguages.isEmpty {
+            mpv_set_option_string(mpv, "slang", subtitleLanguages.joined(separator: ","))
+        }
 
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
 

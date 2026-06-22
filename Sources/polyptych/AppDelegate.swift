@@ -144,7 +144,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
-        mpv.start(file: filePath, isURL: isURL)
+        mpv.start(file: filePath, isURL: isURL,
+                  audioLanguages: cachedConfig.audioLanguages,
+                  subtitleLanguages: cachedConfig.subtitleLanguages)
 
         // Prevent display sleep and screensaver during playback
         IOPMAssertionCreateWithName(

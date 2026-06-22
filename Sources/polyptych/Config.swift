@@ -4,7 +4,7 @@ struct AppConfig: Codable {
     var bezelGaps: [Double] = [0, 0]
     var audioDelay: Double = 0
     var frameDelay: Double = 0
-    var audioLanguages: [String] = ["zh", "en"]
+    var audioLanguages: [String] = []
     var subtitleLanguages: [String] = ["en"]
 }
 
