@@ -199,21 +199,44 @@ final class MPVController: @unchecked Sendable {
         }
     }
 
-    /// Find the first track of `type` whose language matches one of `languages`.
+    /// Map ISO 639-1 codes to common ISO 639-2/B three-letter codes.
+    private static let langMap: [String: [String]] = [
+        "zh": ["chi", "zho", "cmn"],
+        "en": ["eng"],
+        "ja": ["jpn"],
+        "ko": ["kor"],
+        "fr": ["fra", "fre"],
+        "de": ["deu", "ger"],
+        "es": ["spa"],
+        "it": ["ita"],
+        "pt": ["por"],
+        "ru": ["rus"],
+        "ar": ["ara"],
+        "hi": ["hin"],
+    ]
+
+    /// Find the first track of `type` matching a language in `languages` (preference order).
     private func findTrack(type: String, languages: [String]) -> Int64? {
         let count = readPropInt64("track-list/count") ?? 0
-        for i in 0..<count {
-            guard readPropertyString("track-list/\(i)/type") == type else { continue }
-            guard let lang = readPropertyString("track-list/\(i)/lang"), !lang.isEmpty else { continue }
-            if languages.contains(where: { lang.hasPrefix($0) || $0.hasPrefix(lang) }) {
-                return readPropInt64("track-list/\(i)/id")
+        // For each language preference (in order), find a matching track
+        for langPref in languages {
+            // Build possible codes for this preference (one-letter + three-letter variants)
+            var codes = [langPref]
+            if let three = Self.langMap[langPref] {
+                codes.append(contentsOf: three)
+            }
+            for i in 0..<count {
+                guard readPropertyString("track-list/\(i)/type") == type else { continue }
+                guard let trackLang = readPropertyString("track-list/\(i)/lang"), !trackLang.isEmpty else { continue }
+                if codes.contains(trackLang) {
+                    return readPropInt64("track-list/\(i)/id")
+                }
             }
         }
         // Fallback: unlabeled track of the right type
         for i in 0..<count {
             guard readPropertyString("track-list/\(i)/type") == type else { continue }
-            let lang = readPropertyString("track-list/\(i)/lang") ?? ""
-            if lang.isEmpty {
+            if (readPropertyString("track-list/\(i)/lang") ?? "").isEmpty {
                 return readPropInt64("track-list/\(i)/id")
             }
         }
