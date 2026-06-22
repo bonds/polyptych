@@ -144,6 +144,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
+        if debugMode {
+            fputs("[polyptych] startPlayback: audioLanguages=\(cachedConfig.audioLanguages) subtitleLanguages=\(cachedConfig.subtitleLanguages)\n", stderr)
+        }
         mpv.start(file: filePath, isURL: isURL,
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages)

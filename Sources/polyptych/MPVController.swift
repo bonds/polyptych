@@ -63,10 +63,16 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "watch-later-dir", "\(NSHomeDirectory())/.config/polyptych/watch_later")
 
         if !audioLanguages.isEmpty {
-            mpv_set_option_string(mpv, "alang", audioLanguages.joined(separator: ","))
+            let s = audioLanguages.joined(separator: ",")
+            fputs("[polyptych] mpv.start: setting alang='\(s)'\n", stderr)
+            mpv_set_option_string(mpv, "alang", s)
+        } else {
+            fputs("[polyptych] mpv.start: audioLanguages empty, NOT setting alang\n", stderr)
         }
         if !subtitleLanguages.isEmpty {
-            mpv_set_option_string(mpv, "slang", subtitleLanguages.joined(separator: ","))
+            let s = subtitleLanguages.joined(separator: ",")
+            fputs("[polyptych] mpv.start: setting slang='\(s)'\n", stderr)
+            mpv_set_option_string(mpv, "slang", s)
         }
 
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
