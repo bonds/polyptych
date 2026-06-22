@@ -1,5 +1,6 @@
 (() => {
-  const POLYPTYCH_CLASS = "polyptych-button";
+  const BAR_ID = "polyptych-progress-bar";
+  const TOAST_ID = "polyptych-toast";
 
   function getVideoUrl() {
     const url = new URL(location.href);
@@ -19,59 +20,168 @@
     if (video && !video.paused) video.pause();
   }
 
-  function injectButton() {
-    const existing = document.querySelector(`.${POLYPTYCH_CLASS}`);
-    if (existing) return;
+  function launchPolyptych() {
+    const url = getVideoUrl();
+    if (!url) return;
 
-    const rightControls = document.querySelector(".ytp-right-controls");
-    if (!rightControls) return;
+    pauseYoutube();
+    showToast("Sending to polyptych…");
+    setBar("requesting", 10);
 
-    const btn = document.createElement("button");
-    btn.className = "ytp-button " + POLYPTYCH_CLASS;
-    btn.title = "Play on all monitors with polyptych";
-    btn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="1" y="3" width="6" height="14" rx="1" fill="currentColor"/>
-        <rect x="7" y="1" width="6" height="18" rx="1" fill="currentColor"/>
-        <rect x="13" y="3" width="6" height="14" rx="1" fill="currentColor"/>
-      </svg>`;
-
-    btn.addEventListener("click", () => {
-      const url = getVideoUrl();
-      if (!url) return;
-
-      pauseYoutube();
-      btn.disabled = true;
-      btn.title = "Downloading… (0%)";
-
-      chrome.runtime.sendMessage({ type: "play", url }, (resp) => {
-        if (chrome.runtime.lastError || (resp && resp.error)) {
-          btn.title = "Error starting polyptych";
-          setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
-          return;
-        }
-        // Progress: update tooltip as time passes
-        const phases = [
-          [5,  "Downloading… (25%)"],
-          [15, "Downloading… (50%)"],
-          [25, "Downloading… (75%)"],
-          [35, "Starting playback…"],
-          [45, "Playing on all monitors"],
-        ];
-        phases.forEach(([delay, text], i) => {
-          setTimeout(() => {
-            btn.title = text;
-            if (i === phases.length - 1) {
-              setTimeout(() => { btn.disabled = false; btn.title = "Play on all monitors with polyptych"; }, 5000);
-            }
-          }, delay * 1000);
-        });
-      });
+    chrome.runtime.sendMessage({ type: "play", url }, (resp) => {
+      if (chrome.runtime.lastError || (resp && resp.error)) {
+        showToast("Error starting polyptych", 3000);
+        setBar("error", 0);
+        setTimeout(() => hideBar(), 2000);
+        return;
+      }
+      showToast("Downloading…");
+      simulateProgress();
     });
-
-    rightControls.prepend(btn);
   }
 
-  injectButton();
-  new MutationObserver(() => injectButton()).observe(document.body, { childList: true, subtree: true });
+  // Fake progress stages when real progress isn't available
+  function simulateProgress() {
+    setBar("downloading", 5);
+    const steps = [
+      [1, 15],
+      [3, 30],
+      [6, 50],
+      [10, 70],
+      [15, 85],
+      [22, 95],
+      [28, 100],
+    ];
+    steps.forEach(([delay, pct]) => {
+      setTimeout(() => setBar("downloading", pct), delay * 1000);
+    });
+    setTimeout(() => {
+      setBar("playing", 100);
+      showToast("Playing on all monitors", 2000);
+      setTimeout(() => hideBar(), 3000);
+    }, 30000);
+  }
+
+  // ---- Progress bar ----
+
+  function getBar() {
+    let el = document.getElementById(BAR_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = BAR_ID;
+      el.style.cssText = `
+        position: fixed; top: 0; left: 0; z-index: 999999;
+        height: 3px; width: 0%; transition: width 0.3s ease;
+      `;
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function setBar(state, pct) {
+    const el = getBar();
+    el.style.width = Math.max(0, Math.min(100, pct)) + "%";
+    const colors = {
+      requesting: "#fbbf24",
+      downloading: "#ef4444",
+      playing: "#22c55e",
+      error: "#7f1d1d",
+      idle: "transparent",
+    };
+    el.style.background = colors[state] || "#ef4444";
+    el.style.opacity = pct >= 100 ? "0" : "1";
+  }
+
+  function hideBar() {
+    const el = document.getElementById(BAR_ID);
+    if (el) el.style.width = "0%";
+  }
+
+  // ---- Toast ----
+
+  function getToast() {
+    let el = document.getElementById(TOAST_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = TOAST_ID;
+      el.style.cssText = `
+        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+        z-index: 999999; padding: 8px 16px; border-radius: 6px;
+        background: rgba(0,0,0,0.85); color: #fff; font: 14px/1.4 sans-serif;
+        pointer-events: none; transition: opacity 0.2s ease;
+        opacity: 0;
+      `;
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function showToast(msg, duration = 0) {
+    const el = getToast();
+    el.textContent = "polyptych: " + msg;
+    el.style.opacity = "1";
+    if (duration > 0) {
+      clearTimeout(el._hideTimer);
+      el._hideTimer = setTimeout(() => { el.style.opacity = "0"; }, duration);
+    }
+  }
+
+  // ---- Hook fullscreen button ----
+
+  let hooked = false;
+
+  function setupHooks() {
+    if (hooked) return;
+    // Intercept fullscreen button
+    const fsBtn = document.querySelector(".ytp-fullscreen-button");
+    if (!fsBtn) return;
+
+    fsBtn.addEventListener("click", (e) => {
+      if (e.ctrlKey || e.metaKey) return; // allow Cmd+click for real fullscreen
+      e.preventDefault();
+      e.stopPropagation();
+      launchPolyptych();
+    });
+
+    // Intercept F key (YouTube uses it for fullscreen)
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "f" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const active = document.activeElement;
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        launchPolyptych();
+      }
+    }, true);
+
+    // Listen for status updates from background
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === "status") {
+        const parts = (msg.status || "").split("|");
+        const state = parts[0] || "";
+        const pct = parseInt(parts[1], 10) || 0;
+        const text = parts[2] || "";
+        if (state === "playing") {
+          setBar("playing", 100);
+          showToast(text || "Playing on all monitors", 2000);
+          setTimeout(() => hideBar(), 3000);
+        } else if (state === "error") {
+          setBar("error", 0);
+          showToast(text || "Error", 3000);
+          setTimeout(() => hideBar(), 2000);
+        } else if (state === "downloading") {
+          setBar("downloading", pct);
+          showToast(text || `Downloading… ${pct}%`, 0);
+        } else if (state === "requesting") {
+          setBar("requesting", 10);
+          showToast(text || "Requesting…", 0);
+        }
+      }
+    });
+
+    hooked = true;
+  }
+
+  setupHooks();
+  new MutationObserver(() => setupHooks()).observe(document.body, { childList: true, subtree: true });
 })();

@@ -18,11 +18,12 @@ function connect() {
 }
 
 function broadcastStatus() {
-  // Read the status file written by the native host
   fetch("file:///tmp/polyptych-yt-status")
     .then(r => r.text())
     .then(text => {
       const status = text.trim();
+      if (!status) return;
+      // Forward to all content scripts
       chrome.runtime.sendMessage({ type: "status", status }).catch(() => {});
     })
     .catch(() => {});
@@ -38,10 +39,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
       port.postMessage({ url: msg.url });
       sendResponse({ ok: true });
-      // Poll for status
+      // Poll for status updates
       if (statusTimer) clearInterval(statusTimer);
-      statusTimer = setInterval(broadcastStatus, 2000);
-      setTimeout(() => { if (statusTimer) clearInterval(statusTimer); statusTimer = null; }, 60000);
+      broadcastStatus(); // immediate first read
+      statusTimer = setInterval(broadcastStatus, 1500);
+      setTimeout(() => {
+        if (statusTimer) clearInterval(statusTimer);
+        statusTimer = null;
+      }, 120000);
     } catch (e) {
       sendResponse({ error: String(e) });
     }
