@@ -9,7 +9,7 @@ final class SliceView: NSView {
 
     // Subtitle overlay
     private var subtitleLayer: CATextLayer?
-    private let subtitleHeight: CGFloat = 200
+    private let subtitleHeight: CGFloat = 280
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -71,8 +71,8 @@ final class SliceView: NSView {
             layer.isHidden = true
         } else {
             let para = NSMutableParagraphStyle()
-            para.paragraphSpacingBefore = 16
-            para.paragraphSpacing = 16
+            para.paragraphSpacingBefore = 40
+            para.paragraphSpacing = 24
             para.alignment = .center
             layer.string = NSAttributedString(string: s, attributes: [
                 .paragraphStyle: para,
