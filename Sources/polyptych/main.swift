@@ -54,11 +54,6 @@ func parseArgs() -> InputMode? {
     return .file(first)
 }
 
-guard let mode = parseArgs() else {
-    fputs("Usage: polyptych <video-file>\n       polyptych <url>\n       polyptych --youtube <search terms>\n       polyptych --no-cache --youtube <search terms>\n", stderr)
-    exit(1)
-}
-
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 
@@ -71,6 +66,6 @@ appItem.submenu = appMenu
 menubar.addItem(appItem)
 app.mainMenu = menubar
 
-let delegate = AppDelegate(mode: mode)
+let delegate = AppDelegate(mode: parseArgs())
 app.delegate = delegate
 app.run()

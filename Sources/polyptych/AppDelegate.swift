@@ -2,7 +2,7 @@ import AppKit
 import IOKit.pwr_mgt
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let mode: InputMode
+    private let mode: InputMode?
     private var mpvController: MPVController?
     private var spannedWindows: [SpannedWindow] = []
     private var sliceViews: [SliceView] = []
@@ -13,11 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cachedSx: Double = 0
     private var cachedSy: Double = 0
 
-    init(mode: InputMode) {
+    init(mode: InputMode?) {
         self.mode = mode
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard let mode else { return } // launched via Finder with no args — wait for openFile
         switch mode {
         case .file(let path):
             guard FileManager.default.fileExists(atPath: path) else {
@@ -77,6 +78,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        if debugMode {
+            fputs("[polyptych] openFile: \(filename)\n", stderr)
+        }
+        // If already playing, close current playback and start new file
+        if mpvController != nil {
+            mpvController?.savePosition()
+            mpvController = nil
+            for w in spannedWindows { w.close() }
+            spannedWindows = []
+            sliceViews = []
+            downloadedFile = nil
+        }
+        startPlayback(filePath: filename, isURL: false)
+        return true
     }
 
     // MARK: - Setup
