@@ -195,13 +195,11 @@ final class MPVController: @unchecked Sendable {
                 break
             }
             if event.event_id == MPV_EVENT_FILE_LOADED {
-                // Reset aid/sid after watch-later restores saved track IDs from previous play
-                cmd(["set", "aid", "auto"])
-                cmd(["set", "sid", "auto"])
-                if debugMode {
-                    // Log available audio/sub tracks once on load
-                    let aCount = readPropInt64("track-list/count") ?? 0
-                    fputs("[polyptych] tracks: \(aCount) loaded | alang set\n", stderr)
+                // Reset aid/sid on main thread — calling mpv_command from within
+                // the event loop causes a deadlock.
+                DispatchQueue.main.async { [weak self] in
+                    self?.cmd(["set", "aid", "auto"])
+                    self?.cmd(["set", "sid", "auto"])
                 }
             }
             if event.event_id == MPV_EVENT_END_FILE,
