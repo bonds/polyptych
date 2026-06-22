@@ -71,10 +71,8 @@ final class SliceView: NSView {
             layer.isHidden = true
         } else {
             let para = NSMutableParagraphStyle()
-            para.paragraphSpacingBefore = 40
-            para.paragraphSpacing = 24
             para.alignment = .center
-            layer.string = NSAttributedString(string: s, attributes: [
+            layer.string = NSAttributedString(string: "\n\(s)\n", attributes: [
                 .paragraphStyle: para,
                 .font: NSFont.boldSystemFont(ofSize: 56),
                 .foregroundColor: NSColor.white,
