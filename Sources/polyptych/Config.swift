@@ -7,6 +7,18 @@ struct AppConfig: Codable {
     var audioLanguages: [String] = []
     var subtitleLanguages: [String] = ["en"]
     var subtitlePosition: String = "bottom"
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        bezelGaps = try c.decodeIfPresent([Double].self, forKey: .bezelGaps) ?? [0, 0]
+        audioDelay = try c.decodeIfPresent(Double.self, forKey: .audioDelay) ?? 0
+        frameDelay = try c.decodeIfPresent(Double.self, forKey: .frameDelay) ?? 0
+        audioLanguages = try c.decodeIfPresent([String].self, forKey: .audioLanguages) ?? []
+        subtitleLanguages = try c.decodeIfPresent([String].self, forKey: .subtitleLanguages) ?? ["en"]
+        subtitlePosition = try c.decodeIfPresent(String.self, forKey: .subtitlePosition) ?? "bottom"
+    }
 }
 
 enum Config {
