@@ -70,7 +70,13 @@ final class SliceView: NSView {
             layer.string = ""
             layer.isHidden = true
         } else {
-            layer.string = s
+            let para = NSMutableParagraphStyle()
+            para.paragraphSpacingBefore = 16
+            para.paragraphSpacing = 16
+            para.alignment = .center
+            layer.string = NSAttributedString(string: s, attributes: [
+                .paragraphStyle: para,
+            ])
             layer.isHidden = false
         }
     }
