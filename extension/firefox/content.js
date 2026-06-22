@@ -132,7 +132,7 @@
 
   function setupHooks() {
     if (hooked) return;
-    // Intercept fullscreen button
+    // Intercept fullscreen button (capture phase to fire before YouTube's handler)
     const fsBtn = document.querySelector(".ytp-fullscreen-button");
     if (!fsBtn) return;
 
@@ -141,7 +141,7 @@
       e.preventDefault();
       e.stopPropagation();
       launchPolyptych();
-    });
+    }, true);
 
     // Intercept F key (YouTube uses it for fullscreen)
     document.addEventListener("keydown", (e) => {
