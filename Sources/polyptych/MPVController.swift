@@ -177,14 +177,24 @@ final class MPVController: @unchecked Sendable {
         }
 
         // Manually select audio track matching audioLanguages
-        let aLangs = readPropertyString("options/alang") ?? ""
-        if !aLangs.isEmpty {
+        let aLangs = readPropertyString("options/alang") ?? "<nil>"
+        fputs("[polyptych] reselect: alang option='\(aLangs)'\n", stderr)
+        if !aLangs.isEmpty && aLangs != "<nil>" {
             let prefs = aLangs.split(separator: ",").map(String.init)
             if let matchingId = findTrack(type: "audio", languages: prefs) {
+                fputs("[polyptych] reselect: found audio track \(matchingId), setting aid\n", stderr)
                 cmd(["set", "aid", String(matchingId)])
+                // Verify after set
+                let after = readPropertyString("aid") ?? "?"
+                let afterLang = readPropertyString("current-tracks/audio/lang") ?? "?"
+                fputs("[polyptych] reselect: aid=\(after) lang=\(afterLang)\n", stderr)
             } else {
+                fputs("[polyptych] reselect: no matching audio track, setting aid=auto\n", stderr)
                 cmd(["set", "aid", "auto"])
             }
+        } else {
+            fputs("[polyptych] reselect: no alang set, setting aid=auto\n", stderr)
+            cmd(["set", "aid", "auto"])
         }
 
         // Manually select sub track matching subtitleLanguages
