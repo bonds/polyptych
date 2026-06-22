@@ -76,6 +76,8 @@ final class SliceView: NSView {
             para.alignment = .center
             layer.string = NSAttributedString(string: s, attributes: [
                 .paragraphStyle: para,
+                .font: NSFont.boldSystemFont(ofSize: 56),
+                .foregroundColor: NSColor.white,
             ])
             layer.isHidden = false
         }
