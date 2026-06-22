@@ -502,6 +502,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
+        case 27: mpv.cmd(["add", "volume", "-10"]); return true  // - / _
+        case 24: mpv.cmd(["add", "volume", "10"]); return true   // = / +
         default:
             if let chars = event.characters {
                 switch chars {
@@ -530,12 +532,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
                     saveConfig(); return true
-                case "=", "+":
-                    mpv.cmd(["add", "volume", "10"])
-                    return true
-                case "-", "_":
-                    mpv.cmd(["add", "volume", "-10"])
-                    return true
                 case "0":
                     mpv.cmd(["set", "volume", "100"])
                     mpv.cmd(["show-text", "Volume: 100%", "1000"])
