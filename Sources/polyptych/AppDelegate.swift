@@ -462,7 +462,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let totalMs = (fEnd - fStart) * 1000
             let rw = Int(mpv.renderWidth)
             let rh = Int(mpv.renderHeight)
-            fputs("[polyptych] \(Int(round(fps)))fps hit:\(hitRate) vfps:\(Int(round(vfps))) drops:\(drops) | frame:\(Int(totalMs))ms | \(rw)×\(rh)\n", stderr)
+            let aLang = mpv.readPropertyString("current-tracks/audio/lang") ?? "-"
+            let sLang = mpv.readPropertyString("current-tracks/sub/lang") ?? "-"
+            let sForced = mpv.readPropertyString("current-tracks/sub/forced") ?? "no"
+            fputs("[polyptych] \(Int(round(fps)))fps hit:\(hitRate) vfps:\(Int(round(vfps))) drops:\(drops) | frame:\(Int(totalMs))ms | \(rw)×\(rh) | a:\(aLang) s:\(sLang)(\(sForced))\n", stderr)
             fpsFrames = 0
             fpsLastTime = now
             renderAttempts = 0

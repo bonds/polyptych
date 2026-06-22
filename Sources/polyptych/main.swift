@@ -47,7 +47,8 @@ func parseArgs() -> InputMode? {
         return .youtubeSearch(query, noCache: false)
     }
 
-    if first.hasPrefix("ytdl://") || first.hasPrefix("http://") || first.hasPrefix("https://") {
+    if first.hasPrefix("ytdl://") || first.hasPrefix("http://") || first.hasPrefix("https://")
+        || first.hasPrefix("smb://") || first.hasPrefix("afp://") || first.hasPrefix("nfs://") {
         return .url(first)
     }
 
