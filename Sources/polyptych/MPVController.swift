@@ -73,9 +73,6 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         cmd(["loadfile", filePath])
-        // Force re-evaluate alang/slang — watch-later can override with saved aid/sid
-        cmd(["set", "aid", "auto"])
-        cmd(["set", "sid", "auto"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
@@ -196,6 +193,16 @@ final class MPVController: @unchecked Sendable {
             if event.event_id == MPV_EVENT_SHUTDOWN {
                 DispatchQueue.main.async { NSApp.terminate(nil as Any?) }
                 break
+            }
+            if event.event_id == MPV_EVENT_FILE_LOADED {
+                // Reset aid/sid after watch-later restores saved track IDs from previous play
+                cmd(["set", "aid", "auto"])
+                cmd(["set", "sid", "auto"])
+                if debugMode {
+                    // Log available audio/sub tracks once on load
+                    let aCount = readPropInt64("track-list/count") ?? 0
+                    fputs("[polyptych] tracks: \(aCount) loaded | alang set\n", stderr)
+                }
             }
             if event.event_id == MPV_EVENT_END_FILE,
                let data = event.data {
