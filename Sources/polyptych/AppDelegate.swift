@@ -503,8 +503,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
         // Volume: match by keyCode for ISO keyboard layout
-        case 39: mpv.cmd(["add", "volume", "-10"]); return true
-        case 30: mpv.cmd(["add", "volume", "10"]); return true
+        case 39: mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
+        case 30: mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
@@ -535,9 +535,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     saveConfig(); return true
                 case "=", "+":
                     mpv.cmd(["add", "volume", "10"])
+                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
                     return true
                 case "-", "_":
                     mpv.cmd(["add", "volume", "-10"])
+                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
                     return true
                 case "0":
                     mpv.cmd(["set", "volume", "100"])
