@@ -502,8 +502,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
-        case 27: mpv.cmd(["add", "volume", "-10"]); return true  // - / _
-        case 24: mpv.cmd(["add", "volume", "10"]); return true   // = / +
+        case 39: mpv.cmd(["add", "volume", "-10"]); return true  // - (ISO keyboard)
+        case 30: mpv.cmd(["add", "volume", "10"]); return true   // = (ISO keyboard)
         default:
             if let chars = event.characters {
                 switch chars {
