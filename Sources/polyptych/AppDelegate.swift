@@ -502,8 +502,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
-        case 39: mpv.cmd(["add", "volume", "-10"]); return true  // - (ISO keyboard)
-        case 30: mpv.cmd(["add", "volume", "10"]); return true   // = (ISO keyboard)
+        // Volume: match by keyCode for ISO keyboard layout
+        case 39: mpv.cmd(["add", "volume", "-10"]); return true
+        case 30: mpv.cmd(["add", "volume", "10"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
@@ -532,6 +533,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
                     saveConfig(); return true
+                case "=", "+":
+                    mpv.cmd(["add", "volume", "10"])
+                    return true
+                case "-", "_":
+                    mpv.cmd(["add", "volume", "-10"])
+                    return true
                 case "0":
                     mpv.cmd(["set", "volume", "100"])
                     mpv.cmd(["show-text", "Volume: 100%", "1000"])
