@@ -73,6 +73,9 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         cmd(["loadfile", filePath])
+        // Force re-evaluate alang/slang — watch-later can override with saved aid/sid
+        cmd(["set", "aid", "auto"])
+        cmd(["set", "sid", "auto"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
