@@ -43,7 +43,7 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
         mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]")
-        mpv_set_option_string(mpv, "sub-auto", "all")
+        mpv_set_option_string(mpv, "sub-auto", "fuzzy")
         mpv_set_option_string(mpv, "sub-visibility", "no")
 
         if isURL {
