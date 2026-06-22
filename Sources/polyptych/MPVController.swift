@@ -42,6 +42,10 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
         mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]")
+        mpv_set_option_string(mpv, "alang", "zh,en")
+        mpv_set_option_string(mpv, "slang", "en")
+        mpv_set_option_string(mpv, "sub-auto", "all")
+        mpv_set_option_string(mpv, "sub-visibility", "no")
 
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")
@@ -130,6 +134,14 @@ final class MPVController: @unchecked Sendable {
 
     func savePosition() {
         cmd(["write-watch-later-config"])
+    }
+
+    func readPropertyString(_ name: String) -> String? {
+        guard let mpv else { return nil }
+        let ptr = mpv_get_property_string(mpv, name)
+        guard let p = ptr else { return nil }
+        defer { mpv_free(p) }
+        return String(cString: p)
     }
 
     func readPropDouble(_ name: String) -> Double? {

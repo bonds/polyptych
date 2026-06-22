@@ -132,6 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if hasDL && nativeIDs.contains(view.displayID) {
                 frameDelay = cachedConfig.frameDelay
                 view.frameDelay = frameDelay
+                // Middle (native, delayed) screen gets the subtitle overlay
+                view.setupSubtitleLayer()
             }
 
             if debugMode {
@@ -411,6 +413,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 sView.layer?.contents = cgImg
                 sView.layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+            }
+        }
+
+        // Subtitle logic on the middle (native, delayed) screen
+        if let subView = sliceViews.first(where: { $0.frameDelay > 0 }) {
+            let showSubs: Bool = {
+                guard let audioLang = mpv.readPropertyString("current-tracks/audio/lang"),
+                      !audioLang.isEmpty else { return false }
+                return !cachedConfig.subtitleLanguages.contains(audioLang)
+            }()
+            if showSubs {
+                let subText = mpv.readPropertyString("sub-text")
+                subView.updateSubtitle(subText)
+            } else {
+                subView.updateSubtitle(nil)
             }
         }
 

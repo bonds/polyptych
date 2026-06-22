@@ -7,6 +7,10 @@ final class SliceView: NSView {
     // Frame queue for delayed (native) screens
     private var frameQueue: [(time: CFAbsoluteTime, image: CGImage)] = []
 
+    // Subtitle overlay
+    private var subtitleLayer: CATextLayer?
+    private let subtitleHeight: CGFloat = 60
+
     override var acceptsFirstResponder: Bool { true }
 
     override init(frame: NSRect) {
@@ -20,6 +24,51 @@ final class SliceView: NSView {
         self.wantsLayer = true
         self.layer?.contentsGravity = .resize
     }
+
+    deinit {
+        subtitleLayer?.removeFromSuperlayer()
+    }
+
+    // MARK: - Subtitles
+
+    /// Create the subtitle text overlay layer (call once after the view has a frame).
+    func setupSubtitleLayer() {
+        guard let parent = self.layer else { return }
+        let layer = CATextLayer()
+        layer.string = ""
+        layer.font = NSFont.boldSystemFont(ofSize: 28)
+        layer.fontSize = 28
+        layer.foregroundColor = NSColor.white.cgColor
+        layer.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.6).cgColor
+        layer.cornerRadius = 8
+        layer.alignmentMode = .center
+        layer.isWrapped = true
+        layer.truncationMode = .end
+        layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+        layer.zPosition = 100 // above video content
+        layer.position = CGPoint(x: parent.bounds.midX, y: parent.bounds.maxY - subtitleHeight / 2 - 20)
+        layer.bounds = CGRect(x: 0, y: 0,
+                              width: min(parent.bounds.width * 0.9, 800),
+                              height: subtitleHeight)
+        layer.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
+        parent.addSublayer(layer)
+        subtitleLayer = layer
+    }
+
+    /// Update the subtitle text (nil or empty hides the overlay).
+    func updateSubtitle(_ text: String?) {
+        guard let layer = subtitleLayer else { return }
+        let s = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty {
+            layer.string = ""
+            layer.isHidden = true
+        } else {
+            layer.string = s
+            layer.isHidden = false
+        }
+    }
+
+    // MARK: - Frame queue
 
     /// Queue a pre-built CGImage for delayed display.
     func enqueueDelayedImage(_ image: CGImage) {
