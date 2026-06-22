@@ -420,11 +420,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Subtitle logic on the middle (native, delayed) screen
         if let subView = sliceViews.first(where: { $0.frameDelay > 0 }) {
-            let showSubs: Bool = {
-                guard let audioLang = mpv.readPropertyString("current-tracks/audio/lang"),
-                      !audioLang.isEmpty else { return false }
-                return !cachedConfig.subtitleLanguages.contains(audioLang)
-            }()
+            let subForced = mpv.readPropertyString("current-tracks/sub/forced")
+            let audioLang = mpv.readPropertyString("current-tracks/audio/lang")
+            let showSubs = subForced == "yes"
+                || (audioLang != nil && !audioLang!.isEmpty
+                    && !cachedConfig.subtitleLanguages.contains(audioLang!))
             if showSubs {
                 let subText = mpv.readPropertyString("sub-text")
                 subView.updateSubtitle(subText)
