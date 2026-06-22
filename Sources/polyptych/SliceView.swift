@@ -9,7 +9,7 @@ final class SliceView: NSView {
 
     // Subtitle overlay
     private var subtitleLayer: CATextLayer?
-    private let subtitleHeight: CGFloat = 60
+    private let subtitleHeight: CGFloat = 200
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -36,14 +36,13 @@ final class SliceView: NSView {
         guard let parent = self.layer else { return }
         let layer = CATextLayer()
         layer.string = ""
-        layer.font = NSFont.boldSystemFont(ofSize: 28)
-        layer.fontSize = 28
+        layer.font = NSFont.boldSystemFont(ofSize: 56)
+        layer.fontSize = 56
         layer.foregroundColor = NSColor.white.cgColor
         layer.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.6).cgColor
         layer.cornerRadius = 8
         layer.alignmentMode = .center
         layer.isWrapped = true
-        layer.truncationMode = .end
         layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         layer.zPosition = 100 // above video content
         layer.position = CGPoint(x: parent.bounds.midX, y: parent.bounds.maxY - subtitleHeight / 2 - 20)
