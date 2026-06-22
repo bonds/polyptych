@@ -536,7 +536,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     mpv.cmd(["set", "volume", "100"])
                     mpv.cmd(["show-text", "Volume: 100%", "1000"])
                     return true
-                default: break
+                default:
+                    if debugMode {
+                        fputs("[polyptych] unhandled key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mod=\(event.modifierFlags.rawValue)\n", stderr)
+                    }
+                    break
                 }
             }
         }
