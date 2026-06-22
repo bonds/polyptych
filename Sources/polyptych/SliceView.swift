@@ -32,7 +32,7 @@ final class SliceView: NSView {
     // MARK: - Subtitles
 
     /// Create the subtitle text overlay layer (call once after the view has a frame).
-    func setupSubtitleLayer() {
+    func setupSubtitleLayer(position: String = "bottom") {
         guard let parent = self.layer else { return }
         let layer = CATextLayer()
         layer.string = ""
@@ -45,9 +45,17 @@ final class SliceView: NSView {
         layer.isWrapped = true
         layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         layer.zPosition = 100 // above video content
-        layer.position = CGPoint(x: parent.bounds.midX, y: parent.bounds.maxY - subtitleHeight / 2 - 20)
+
+        let yPos: CGFloat
+        if position == "top" {
+            yPos = parent.bounds.maxY - subtitleHeight / 2 - 20
+        } else {
+            yPos = parent.bounds.minY + subtitleHeight / 2 + 60
+        }
+        layer.position = CGPoint(x: parent.bounds.midX, y: yPos)
+
         layer.bounds = CGRect(x: 0, y: 0,
-                              width: min(parent.bounds.width * 0.9, 800),
+                              width: parent.bounds.width * 0.95,
                               height: subtitleHeight)
         layer.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
         parent.addSublayer(layer)

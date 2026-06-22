@@ -6,6 +6,7 @@ struct AppConfig: Codable {
     var frameDelay: Double = 0
     var audioLanguages: [String] = []
     var subtitleLanguages: [String] = ["en"]
+    var subtitlePosition: String = "bottom"
 }
 
 enum Config {

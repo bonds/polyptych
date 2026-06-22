@@ -133,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 frameDelay = cachedConfig.frameDelay
                 view.frameDelay = frameDelay
                 // Middle (native, delayed) screen gets the subtitle overlay
-                view.setupSubtitleLayer()
+                view.setupSubtitleLayer(position: cachedConfig.subtitlePosition)
             }
 
             if debugMode {
