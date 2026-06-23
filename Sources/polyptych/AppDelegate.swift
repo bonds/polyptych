@@ -499,16 +499,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Returns true if the key was handled (event swallowed).
     func handleKey(_ event: NSEvent) -> Bool {
-        fputs("[polyptych] key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mod=\(event.modifierFlags.rawValue)\n", stderr)
+        // Direct debug write (bypasses stderr redirection issues)
+        let dbg = "handleKey: keyCode=\(event.keyCode) chars='\(event.characters ?? "")'\n"
+        try? dbg.data(using: .utf8)?.write(to: URL(fileURLWithPath: "/tmp/polyptych-dbg.txt"))
+
+        // Volume keys: handle at the very top regardless of mpv state
+        if event.keyCode == 30 || event.keyCode == 24 {
+            if let mpv = mpvController {
+                mpv.cmd(["add", "volume", "10"])
+                mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
+            }
+            return true
+        }
+        if event.keyCode == 39 || event.keyCode == 27 {
+            if let mpv = mpvController {
+                mpv.cmd(["add", "volume", "-10"])
+                mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
+            }
+            return true
+        }
+
         guard let mpv = mpvController else { return false }
         switch event.keyCode {
         case 123: mpv.cmd(["seek", "-5"]); return true
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
-        // Volume keys: multiple keyCode layouts (ANSI 24/27, ISO 30/39)
-        case 24, 30: fputs("[polyptych] volume up (keyCode=\(event.keyCode))\n", stderr); mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
-        case 27, 39: fputs("[polyptych] volume down (keyCode=\(event.keyCode))\n", stderr); mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
