@@ -498,7 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Keyboard
 
     /// Returns true if the key was handled (event swallowed).
-    private func handleKey(_ event: NSEvent) -> Bool {
+    func handleKey(_ event: NSEvent) -> Bool {
         fputs("[polyptych] key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mod=\(event.modifierFlags.rawValue)\n", stderr)
         guard let mpv = mpvController else { return false }
         switch event.keyCode {

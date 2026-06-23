@@ -12,6 +12,7 @@ if [ "${POLYPTYCH:0:1}" = "@" ]; then
     POLYPTYCH="/run/current-system/sw/bin/polyptych"
 fi
 
+
 mkdir -p "$YTDL_DIR"
 echo "idle|0|" > "$STATUS"
 
@@ -49,7 +50,7 @@ while true; do
             write_status "downloading|100|Launching from cache…"
             sleep 1
             write_status "playing|100|Playing on all monitors"
-            open -a polyptych "$existing_file"
+            open "$existing_file"
             sleep 2
             write_status "idle|0|"
             continue
@@ -105,7 +106,7 @@ while true; do
         fi
 
         write_status "playing|100|Playing on all monitors"
-        open -a polyptych "$dl_path"
+        open "$dl_path"
         sleep 2
         write_status "idle|0|"
     fi

@@ -13,6 +13,13 @@ final class SliceView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func keyDown(with event: NSEvent) {
+        if (NSApp.delegate as? AppDelegate)?.handleKey(event) ?? false {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         self.wantsLayer = true
