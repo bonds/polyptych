@@ -502,9 +502,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
-        // Volume: match by keyCode for ISO keyboard layout
-        case 39: mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
-        case 30: mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
+        // Volume keys: multiple keyCode layouts (ANSI 24/27, ISO 30/39)
+        case 24, 30: fputs("[polyptych] volume up (keyCode=\(event.keyCode))\n", stderr); mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
+        case 27, 39: fputs("[polyptych] volume down (keyCode=\(event.keyCode))\n", stderr); mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
@@ -534,10 +534,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
                     saveConfig(); return true
                 case "=", "+":
+                    fputs("[polyptych] volume up (char)\n", stderr)
                     mpv.cmd(["add", "volume", "10"])
                     mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
                     return true
                 case "-", "_":
+                    fputs("[polyptych] volume down (char)\n", stderr)
                     mpv.cmd(["add", "volume", "-10"])
                     mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
                     return true
@@ -546,9 +548,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     mpv.cmd(["show-text", "Volume: 100%", "1000"])
                     return true
                 default:
-                    if debugMode {
-                        fputs("[polyptych] unhandled key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mod=\(event.modifierFlags.rawValue)\n", stderr)
-                    }
+                    fputs("[polyptych] unhandled key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mpv=\(mpvController != nil ? "yes" : "NO")\n", stderr)
                     break
                 }
             }
