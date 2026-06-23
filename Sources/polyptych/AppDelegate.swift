@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sliceViews = []
             downloadedFile = nil
         }
+        NSApp.activate(ignoringOtherApps: true)
         startPlayback(filePath: filename, isURL: false)
         return true
     }
@@ -142,6 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApp.activate(ignoringOtherApps: true)
+        // Ensure a window is key for keyboard events (especially when launched from extension/LaunchAgent)
+        spannedWindows.first?.makeKey()
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         if debugMode {
