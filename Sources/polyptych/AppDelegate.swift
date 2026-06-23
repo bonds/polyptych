@@ -499,6 +499,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Returns true if the key was handled (event swallowed).
     private func handleKey(_ event: NSEvent) -> Bool {
+        fputs("[polyptych] key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mod=\(event.modifierFlags.rawValue)\n", stderr)
         guard let mpv = mpvController else { return false }
         switch event.keyCode {
         case 123: mpv.cmd(["seek", "-5"]); return true
