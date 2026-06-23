@@ -49,7 +49,7 @@ while true; do
             write_status "downloading|100|Launching from cache…"
             sleep 1
             write_status "playing|100|Playing on all monitors"
-            "$POLYPTYCH" "$existing_file" &
+            open -a polyptych "$existing_file"
             sleep 2
             write_status "idle|0|"
             continue
@@ -105,7 +105,7 @@ while true; do
         fi
 
         write_status "playing|100|Playing on all monitors"
-        "$POLYPTYCH" "$dl_path" &
+        open -a polyptych "$dl_path"
         sleep 2
         write_status "idle|0|"
     fi
