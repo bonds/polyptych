@@ -5,16 +5,7 @@ var debugMode = false
 
 // Redirect stderr to a log file when launched without a terminal (Finder / extension)
 if isatty(STDERR_FILENO) == 0 {
-    if let fh = FileHandle(forWritingAtPath: "/tmp/polyptych.log") {
-        fh.seekToEndOfFile()
-        dup2(fh.fileDescriptor, STDERR_FILENO)
-    } else {
-        // Create the file if it doesn't exist
-        FileManager.default.createFile(atPath: "/tmp/polyptych.log", contents: nil)
-        if let fh = FileHandle(forWritingAtPath: "/tmp/polyptych.log") {
-            dup2(fh.fileDescriptor, STDERR_FILENO)
-        }
-    }
+    _ = "/tmp/polyptych.log".withCString { freopen($0, "a", stderr) }
 }
 
 enum InputMode {
