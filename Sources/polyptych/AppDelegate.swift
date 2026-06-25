@@ -169,6 +169,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            try? "monitor: keyCode=\(event.keyCode)\n".data(using: .utf8)?
+                .write(to: URL(fileURLWithPath: "/tmp/polyptych-mon.txt"))
             if self?.handleKey(event) ?? false { return nil }
             return event
         }
