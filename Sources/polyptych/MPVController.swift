@@ -80,7 +80,7 @@ final class MPVController: @unchecked Sendable {
         setupSWRenderContext()
         cmd(["loadfile", filePath])
         // Set loudnorm after init — use the dedicated af command for audio filter chain
-        cmd(["af", "set", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3"])
+        cmd(["af", "set", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=2.0"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
