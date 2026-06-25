@@ -38,7 +38,6 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "vo", "libmpv")
         mpv_set_option_string(mpv, "hwdec", "no")
         mpv_set_option_string(mpv, "audio-buffer", "0.05")
-        mpv_set_option_string(mpv, "af", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3")
         mpv_set_option_string(mpv, "video-sync", "audio")
         mpv_set_option_string(mpv, "osd-level", "1")
         mpv_set_option_string(mpv, "osd-align-x", "center")
@@ -80,6 +79,8 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         cmd(["loadfile", filePath])
+        // Set loudnorm after init — setting af as a pre-init option doesn't work for libavfilter filters
+        cmd(["set", "af", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
