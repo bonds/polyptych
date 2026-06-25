@@ -22,10 +22,10 @@ write_status() {
 
 # Open a file with polyptych and bring the app to the foreground
 open_file() {
-    # launchctl asuser runs the command in the user's GUI session context,
-    # giving the launched app full foreground activation privileges (unlike
-    # plain open from a LaunchAgent which macOS blocks from activating).
-    launchctl asuser $(id -u) open -a polyptych "$1" 2>/dev/null || open -a polyptych "$1"
+    open -a polyptych "$1"
+    # Second open call activates the already-running instance to the foreground
+    touch /tmp/polyptych-activate
+    open -a polyptych /tmp/polyptych-activate 2>/dev/null
 }
 
 while true; do
