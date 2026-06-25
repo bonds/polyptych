@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             spannedWindows.append(win)
             sliceViews.append(view)
             win.makeKeyAndOrderFront(nil)
+            win.makeFirstResponder(view)
 
             if hasDL && nativeIDs.contains(view.displayID) {
                 frameDelay = cachedConfig.frameDelay
