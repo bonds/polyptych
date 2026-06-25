@@ -42,7 +42,7 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "osd-level", "1")
         mpv_set_option_string(mpv, "osd-align-x", "center")
         mpv_set_option_string(mpv, "osd-align-y", "center")
-        mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]")
+        mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]")
         mpv_set_option_string(mpv, "sub-auto", "fuzzy")
         mpv_set_option_string(mpv, "sub-visibility", "no")
 
@@ -79,8 +79,6 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         cmd(["loadfile", filePath])
-        // Set loudnorm after init — use the dedicated af command for audio filter chain
-        cmd(["af", "set", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=2.0"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
@@ -102,6 +100,16 @@ final class MPVController: @unchecked Sendable {
             fputs("[polyptych] cmd error: \(args[0]) code=\(result)\n", stderr)
         }
         return result
+    }
+
+    /// Replace the audio filter chain (for YouTube downloaded files with loudness normalization).
+    func setAF(_ filter: String) {
+        cmd(["af", "set", filter])
+    }
+
+    /// Clear all audio filters (for local files — playback at raw volume).
+    func clearAF() {
+        cmd(["af", "clr", ""])
     }
 
     // MARK: - Render

@@ -154,6 +154,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages)
 
+        // Set audio filter: YouTube downloads get loudnorm normalization; local files play raw
+        if filePath.hasPrefix("/tmp/polyptych-downloads/") {
+            let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
+               let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
+                mpv.setAF("loudnorm=I=-14:measured_I=\(m.input_i):measured_LRA=\(m.input_lra):measured_TP=\(m.input_tp):measured_thresh=\(m.input_thresh)")
+                if debugMode {
+                    fputs("[polyptych] loudnorm: two-pass (cached) i=\(m.input_i)\n", stderr)
+                }
+            } else {
+                // No cache yet — use online mode with volume boost
+                mpv.setAF("loudnorm=I=-14:LRA=11:TP=-1.5,volume=2.0")
+                if debugMode {
+                    fputs("[polyptych] loudnorm: online mode\n", stderr)
+                }
+            }
+        } else {
+            mpv.clearAF()
+        }
+
         // Prevent display sleep and screensaver during playback
         IOPMAssertionCreateWithName(
             "NoDisplaySleepAssertion" as CFString,
@@ -275,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["yt-dlp", "--default-search", "ytsearch",
-                            "--format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]",
+                            "--format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]",
                             "--merge-output-format", "mp4",
                             "--output", "\(tmpDir)/%(id)s.%(ext)s",
                             "--print", "after_move:\(tmpDir)/%(id)s.%(ext)s",
