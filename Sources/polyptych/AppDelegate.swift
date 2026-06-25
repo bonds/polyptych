@@ -174,22 +174,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return event
         }
 
-        // Global monitor captures keys even when polyptych isn't the active app
-        // (e.g. when launched from the extension via LaunchAgent).
-        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let kc = event.keyCode
-            DispatchQueue.main.async {
-                guard let mpv = self?.mpvController else { return }
-                if kc == 24 || kc == 30 {
-                    mpv.cmd(["add", "volume", "10"])
-                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-                } else if kc == 27 || kc == 39 {
-                    mpv.cmd(["add", "volume", "-10"])
-                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-                }
-            }
-        }
-
         // Monitor display changes — just update the layout math, don't touch windows.
         // (The render loop uses cachedSlices, so updating those is enough.)
         NotificationCenter.default.addObserver(
@@ -521,9 +505,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
-        // Volume keys (also handled via global monitor for background-launched app)
-        case 24, 30: mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
-        case 27, 39: mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
@@ -552,20 +533,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     for view in sliceViews { if view.frameDelay > 0 { view.frameDelay = frameDelay } }
                     mpv.cmd(["show-text", String(format: "Frame: %dms", Int(frameDelay * 1000)), "1000"])
                     saveConfig(); return true
-                case "=", "+":
-                    fputs("[polyptych] volume up (char)\n", stderr)
-                    mpv.cmd(["add", "volume", "10"])
-                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-                    return true
-                case "-", "_":
-                    fputs("[polyptych] volume down (char)\n", stderr)
-                    mpv.cmd(["add", "volume", "-10"])
-                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-                    return true
-                case "0":
-                    mpv.cmd(["set", "volume", "100"])
-                    mpv.cmd(["show-text", "Volume: 100%", "1000"])
-                    return true
                 default:
                     fputs("[polyptych] unhandled key: keyCode=\(event.keyCode) chars='\(event.characters ?? "")' mpv=\(mpvController != nil ? "yes" : "NO")\n", stderr)
                     break
