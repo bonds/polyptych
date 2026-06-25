@@ -38,7 +38,7 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "vo", "libmpv")
         mpv_set_option_string(mpv, "hwdec", "no")
         mpv_set_option_string(mpv, "audio-buffer", "0.05")
-        mpv_set_option_string(mpv, "af", "dynaudnorm=targetrms=0.3:maxgain=100,volume=2.0")
+        mpv_set_option_string(mpv, "af", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3")
         mpv_set_option_string(mpv, "video-sync", "audio")
         mpv_set_option_string(mpv, "osd-level", "1")
         mpv_set_option_string(mpv, "osd-align-x", "center")
