@@ -55,13 +55,21 @@ while true; do
         # Check if already downloaded
         existing_file=$(ls "$YTDL_DIR/${video_id}".* 2>/dev/null | head -1)
         if [ -n "$existing_file" ] && [ -f "$existing_file" ]; then
-            write_status "downloading|100|Launching from cache…"
-            sleep 1
-            write_status "playing|100|Playing on all monitors"
-            open_file "$existing_file"
-            sleep 2
-            write_status "idle|0|"
-            continue
+            # M2 has no hardware AV1/VP9 decoder — software decode is ~6fps.
+            # Re-download with H.264 if cached file uses a slow codec.
+            codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$existing_file" 2>/dev/null)
+            if [ "$codec" = "av01" ] || [ "$codec" = "vp9" ]; then
+                write_status "downloading|0|Slow codec ($codec), re-downloading with H.264…"
+                rm -f "$existing_file"
+            else
+                write_status "downloading|100|Launching from cache…"
+                sleep 1
+                write_status "playing|100|Playing on all monitors"
+                open_file "$existing_file"
+                sleep 2
+                write_status "idle|0|"
+                continue
+            fi
         fi
 
         write_status "downloading|0|Downloading… 0%"
