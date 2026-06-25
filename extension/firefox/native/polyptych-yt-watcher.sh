@@ -22,9 +22,7 @@ write_status() {
 
 # Open a file with polyptych and bring the app to the foreground
 open_file() {
-    open "$1"
-    # AppleScript activate — works even when open launches a background process
-    (sleep 1 && osascript -e 'tell application "polyptych" to activate') &
+    open -a polyptych "$1"
 }
 
 while true; do
