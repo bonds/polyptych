@@ -79,8 +79,8 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         cmd(["loadfile", filePath])
-        // Set loudnorm after init — setting af as a pre-init option doesn't work for libavfilter filters
-        cmd(["set", "af", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3"])
+        // Set loudnorm after init — use the dedicated af command for audio filter chain
+        cmd(["af", "set", "loudnorm=I=-14:LRA=11:TP=-1.5,volume=1.3"])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
@@ -89,14 +89,19 @@ final class MPVController: @unchecked Sendable {
         }, ctx)
     }
 
-    func cmd(_ args: [String]) {
-        guard let mpv else { return }
+    @discardableResult
+    func cmd(_ args: [String]) -> Int32 {
+        guard let mpv else { return -1 }
         var argv: [UnsafePointer<CChar>?] = args.map {
             $0.withCString { UnsafePointer(strdup($0)) }
         }
         argv.append(nil)
-        mpv_command(mpv, &argv)
+        let result = mpv_command(mpv, &argv)
         for p in argv { if let p { free(UnsafeMutablePointer(mutating: p)) } }
+        if result != 0 {
+            fputs("[polyptych] cmd error: \(args[0]) code=\(result)\n", stderr)
+        }
+        return result
     }
 
     // MARK: - Render
