@@ -170,10 +170,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            try? "monitor: keyCode=\(event.keyCode)\n".data(using: .utf8)?
-                .write(to: URL(fileURLWithPath: "/tmp/polyptych-mon.txt"))
             if self?.handleKey(event) ?? false { return nil }
             return event
+        }
+
+        // Global monitor captures keys even when polyptych isn't the active app
+        // (e.g. when launched from the extension via LaunchAgent).
+        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let kc = event.keyCode
+            DispatchQueue.main.async {
+                guard let mpv = self?.mpvController else { return }
+                if kc == 24 || kc == 30 {
+                    mpv.cmd(["add", "volume", "10"])
+                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
+                } else if kc == 27 || kc == 39 {
+                    mpv.cmd(["add", "volume", "-10"])
+                    mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
+                }
+            }
         }
 
         // Monitor display changes — just update the layout math, don't touch windows.
@@ -501,32 +515,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Returns true if the key was handled (event swallowed).
     func handleKey(_ event: NSEvent) -> Bool {
-        // Direct debug write (bypasses stderr redirection issues)
-        let dbg = "handleKey: keyCode=\(event.keyCode) chars='\(event.characters ?? "")'\n"
-        try? dbg.data(using: .utf8)?.write(to: URL(fileURLWithPath: "/tmp/polyptych-dbg.txt"))
-
-        // Volume keys: handle at the very top regardless of mpv state
-        if event.keyCode == 30 || event.keyCode == 24 {
-            if let mpv = mpvController {
-                mpv.cmd(["add", "volume", "10"])
-                mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-            }
-            return true
-        }
-        if event.keyCode == 39 || event.keyCode == 27 {
-            if let mpv = mpvController {
-                mpv.cmd(["add", "volume", "-10"])
-                mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"])
-            }
-            return true
-        }
-
         guard let mpv = mpvController else { return false }
         switch event.keyCode {
         case 123: mpv.cmd(["seek", "-5"]); return true
         case 124: mpv.cmd(["seek", "5"]); return true
         case 125: mpv.cmd(["seek", "-60"]); return true
         case 126: mpv.cmd(["seek", "60"]); return true
+        // Volume keys (also handled via global monitor for background-launched app)
+        case 24, 30: mpv.cmd(["add", "volume", "10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
+        case 27, 39: mpv.cmd(["add", "volume", "-10"]); mpv.cmd(["show-text", "Volume: " + (mpv.readPropInt64("volume").map { "\($0)%" } ?? "?") , "1000"]); return true
         default:
             if let chars = event.characters {
                 switch chars {
