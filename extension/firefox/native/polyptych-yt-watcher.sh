@@ -20,6 +20,13 @@ write_status() {
     echo "$1" > "$STATUS"
 }
 
+# Open a file with polyptych and bring the app to the foreground
+open_file() {
+    open "$1"
+    # AppleScript activate — works even when open launches a background process
+    (sleep 1 && osascript -e 'tell application "polyptych" to activate') &
+}
+
 while true; do
     if [ -f "$REQUEST" ]; then
         url=$(head -1 "$REQUEST")
@@ -50,7 +57,7 @@ while true; do
             write_status "downloading|100|Launching from cache…"
             sleep 1
             write_status "playing|100|Playing on all monitors"
-            open "$existing_file"
+            open_file "$existing_file"
             sleep 2
             write_status "idle|0|"
             continue
@@ -106,7 +113,7 @@ while true; do
         fi
 
         write_status "playing|100|Playing on all monitors"
-        open "$dl_path"
+        open_file "$dl_path"
         sleep 2
         write_status "idle|0|"
     fi
