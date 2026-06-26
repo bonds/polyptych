@@ -22,9 +22,12 @@ write_status() {
 
 # Open a file with polyptych and bring the app to the foreground
 open_file() {
-    open -a polyptych "$1"
-    # Activate the app to the foreground (no file = just activation)
-    open -a polyptych 2>/dev/null
+    echo "=== $(date) ===" >> /tmp/polyptych-watcher-debug.log
+    echo "Opening: $1" >> /tmp/polyptych-watcher-debug.log
+    open -a polyptych "$1" >> /tmp/polyptych-watcher-debug.log 2>&1; echo "first open: exit=$?" >> /tmp/polyptych-watcher-debug.log
+    open -a polyptych >> /tmp/polyptych-watcher-debug.log 2>/dev/null; echo "second open: exit=$?" >> /tmp/polyptych-watcher-debug.log
+    sleep 2
+    pgrep -x polyptych >> /tmp/polyptych-watcher-debug.log 2>&1 && echo "polyptych: running" >> /tmp/polyptych-watcher-debug.log || echo "polyptych: NOT running" >> /tmp/polyptych-watcher-debug.log
 }
 
 while true; do
