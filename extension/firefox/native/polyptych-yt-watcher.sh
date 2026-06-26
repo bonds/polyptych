@@ -124,14 +124,20 @@ while true; do
               -vn -f null - 2>&1 | python3 -c "
 import sys, json
 text = sys.stdin.read()
+in_json = False
+buf = ''
 for line in text.split('\n'):
-    line = line.strip()
-    if line.startswith('{') and line.rstrip(',').endswith('}'):
-        try:
-            data = json.loads(line.rstrip(','))
-            print(json.dumps({k: data[k] for k in ['input_i','input_lra','input_tp','input_thresh']}))
-        except: pass
-        break
+    if '{' in line and not in_json:
+        in_json = True
+        buf = line[line.index('{'):]
+    elif in_json:
+        buf += '\n' + line
+        if '}' in line:
+            buf = buf.rstrip(',')
+            data = json.loads(buf)
+            result = {k: data[k] for k in ['input_i','input_lra','input_tp','input_thresh']}
+            print(json.dumps(result))
+            break
 " > "$loudness_cache" 2>/dev/null || true
         fi
 
