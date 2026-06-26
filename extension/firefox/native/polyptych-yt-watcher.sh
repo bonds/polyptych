@@ -23,9 +23,8 @@ write_status() {
 # Open a file with polyptych and bring the app to the foreground
 open_file() {
     open -a polyptych "$1"
-    # Second open call activates the already-running instance to the foreground
-    touch /tmp/polyptych-activate
-    open -a polyptych /tmp/polyptych-activate 2>/dev/null
+    # Activate the app to the foreground (no file = just activation)
+    open -a polyptych 2>/dev/null
 }
 
 while true; do
