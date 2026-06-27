@@ -63,6 +63,7 @@ while true; do
                 write_status "downloading|100|Launching from cache…"
                 sleep 1
                 write_status "playing|100|Playing on all monitors"
+                touch /tmp/polyptych-about-to-open
                 open_file "$existing_file"
                 sleep 2
                 write_status "idle|0|"
@@ -144,6 +145,7 @@ for line in text.split('\n'):
         fi
 
         write_status "playing|100|Playing on all monitors"
+        touch /tmp/polyptych-about-to-open
         open_file "$dl_path"
         sleep 2
         write_status "idle|0|"
