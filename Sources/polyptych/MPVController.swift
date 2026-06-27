@@ -47,10 +47,6 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "sub-auto", "fuzzy")
         mpv_set_option_string(mpv, "sub-visibility", "no")
 
-        if let af = audioFilter {
-            mpv_set_option_string(mpv, "af", af)
-        }
-
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")
             mpv_set_option_string(mpv, "cache-secs", "60")
@@ -83,6 +79,12 @@ final class MPVController: @unchecked Sendable {
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
 
         setupSWRenderContext()
+        if let af = audioFilter {
+            let rc = mpv_set_property_string(mpv, "af", af)
+            if rc < 0 {
+                fputs("[polyptych] af property error: \(rc)\n", stderr)
+            }
+        }
         cmd(["loadfile", filePath])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
