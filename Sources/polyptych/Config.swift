@@ -7,6 +7,7 @@ struct AppConfig: Codable {
     var audioLanguages: [String] = []
     var subtitleLanguages: [String] = ["en"]
     var subtitlePosition: String = "bottom"
+    var volumeBoost: Double = 0.0
 
     init() {}
 
@@ -18,6 +19,7 @@ struct AppConfig: Codable {
         audioLanguages = try c.decodeIfPresent([String].self, forKey: .audioLanguages) ?? []
         subtitleLanguages = try c.decodeIfPresent([String].self, forKey: .subtitleLanguages) ?? ["en"]
         subtitlePosition = try c.decodeIfPresent(String.self, forKey: .subtitlePosition) ?? "bottom"
+        volumeBoost = try c.decodeIfPresent(Double.self, forKey: .volumeBoost) ?? 0.0
     }
 }
 

@@ -101,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup
 
     private func startPlayback(filePath: String, isURL: Bool) {
+        cachedConfig = Config.load()
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
         let slices = DisplayLayout.slices(for: screens, relativeTo: union)
@@ -154,19 +155,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages)
 
-        // Set audio filter: loudnorm + volume for YouTube downloads (identified by cached loudness measurement)
-        // NOTE: mpv's real-time loudnorm produces -15.9 LUFS (full-file measurement).
-        // This is ~1.9 dB below YouTube's -14 LUFS target. If YouTube's normalization is
-        // actually at -16 LUFS for this content, no boost is needed. Volume boost can be
-        // added back as ",volume=X.YdB" after the last format specifier if needed.
+        // Set audio filter: loudnorm + optional volume boost for YouTube downloads
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-            let str = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f",
+            var af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f",
                 m.input_i, m.input_lra, m.input_tp, m.input_thresh)
-            mpv.setAF(str)
+            if cachedConfig.volumeBoost > 0 {
+                af += String(format: ",volume=%.1fdB", cachedConfig.volumeBoost)
+            }
+            mpv.setAF(af)
             if debugMode {
-                fputs("[polyptych] loudnorm: cached i=\(m.input_i)\n", stderr)
+                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(cachedConfig.volumeBoost)dB\n", stderr)
             }
         } else {
             mpv.clearAF()
