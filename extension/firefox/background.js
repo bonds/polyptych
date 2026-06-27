@@ -39,14 +39,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
       port.postMessage({ url: msg.url });
       sendResponse({ ok: true });
-      // Poll for status updates
       if (statusTimer) clearInterval(statusTimer);
-      broadcastStatus(); // immediate first read
+      broadcastStatus();
       statusTimer = setInterval(broadcastStatus, 1500);
-      setTimeout(() => {
-        if (statusTimer) clearInterval(statusTimer);
-        statusTimer = null;
-      }, 120000);
     } catch (e) {
       sendResponse({ error: String(e) });
     }

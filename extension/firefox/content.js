@@ -35,31 +35,7 @@
         setTimeout(() => hideBar(), 2000);
         return;
       }
-      showToast("Downloading…");
-      simulateProgress();
     });
-  }
-
-  // Fake progress stages when real progress isn't available
-  function simulateProgress() {
-    setBar("downloading", 5);
-    const steps = [
-      [1, 15],
-      [3, 30],
-      [6, 50],
-      [10, 70],
-      [15, 85],
-      [22, 95],
-      [28, 100],
-    ];
-    steps.forEach(([delay, pct]) => {
-      setTimeout(() => setBar("downloading", pct), delay * 1000);
-    });
-    setTimeout(() => {
-      setBar("playing", 100);
-      showToast("Playing on all monitors", 2000);
-      setTimeout(() => hideBar(), 3000);
-    }, 30000);
   }
 
   // ---- Progress bar ----
@@ -71,7 +47,8 @@
       el.id = BAR_ID;
       el.style.cssText = `
         position: fixed; top: 0; left: 0; z-index: 999999;
-        height: 3px; width: 0%; transition: width 0.3s ease;
+        height: 5px; width: 0%; transition: width 0.3s ease;
+        box-shadow: 0 0 8px rgba(239,68,68,0.6);
       `;
       document.body.appendChild(el);
     }
@@ -105,9 +82,11 @@
       el = document.createElement("div");
       el.id = TOAST_ID;
       el.style.cssText = `
-        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-        z-index: 999999; padding: 8px 16px; border-radius: 6px;
-        background: rgba(0,0,0,0.85); color: #fff; font: 14px/1.4 sans-serif;
+        position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+        z-index: 999999; padding: 12px 24px; border-radius: 8px;
+        background: #1a1a2e; color: #fff; font: 600 15px/1.4 sans-serif;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.12);
         pointer-events: none; transition: opacity 0.2s ease;
         opacity: 0;
       `;
