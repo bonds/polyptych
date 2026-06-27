@@ -12,6 +12,7 @@ final class MPVController: @unchecked Sendable {
     private let numBuffers = 3
     private var buffers: [UnsafeMutablePointer<UInt8>] = []
     private var renderIndex = 0
+    private var pendingAudioFilter: String?
 
     init(unionWidth: Int32, unionHeight: Int32) {
         self.renderWidth = unionWidth
@@ -62,6 +63,9 @@ final class MPVController: @unchecked Sendable {
 
         mpv_set_option_string(mpv, "save-position-on-quit", "yes")
         mpv_set_option_string(mpv, "watch-later-dir", "\(NSHomeDirectory())/.config/polyptych/watch_later")
+        mpv_set_option_string(mpv, "watch-later-options-remove", "af")
+
+        self.pendingAudioFilter = audioFilter
 
         if !audioLanguages.isEmpty {
             let s = audioLanguages.joined(separator: ",")
@@ -79,9 +83,6 @@ final class MPVController: @unchecked Sendable {
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
 
         setupSWRenderContext()
-        if let af = audioFilter {
-            cmd(["change-list", "af", "set", af])
-        }
         cmd(["loadfile", filePath])
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
@@ -318,6 +319,9 @@ final class MPVController: @unchecked Sendable {
             if event.event_id == MPV_EVENT_FILE_LOADED {
                 DispatchQueue.main.async { [weak self] in
                     guard let s = self else { return }
+                    if let af = s.pendingAudioFilter {
+                        s.cmd(["change-list", "af", "set", af])
+                    }
                     s.reselectTracks()
                 }
             }
