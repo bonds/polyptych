@@ -27,6 +27,7 @@ enum Config {
     private static let configDir = "\(NSHomeDirectory())/.config/polyptych"
     private static let configPath = "\(configDir)/config.json"
 
+    @inline(never)
     static func load() -> AppConfig {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
               let config = try? JSONDecoder().decode(AppConfig.self, from: data)
