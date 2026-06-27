@@ -154,22 +154,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages)
 
-        // Set audio filter: YouTube downloads get loudnorm normalization; local files play raw
-        if filePath.hasPrefix("/tmp/polyptych-downloads/") {
-            let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
-               let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-                let loudnormStr = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=2.0dB", m.input_i, m.input_lra, m.input_tp, m.input_thresh)
-                mpv.setAF(loudnormStr)
-                if debugMode {
-                    fputs("[polyptych] loudnorm: two-pass (cached) i=\(m.input_i)\n", stderr)
-                }
-            } else {
-                // No cache yet — use online mode with volume boost
-                mpv.setAF("loudnorm=I=-14:LRA=11:TP=-1.5,volume=2.0dB")
-                if debugMode {
-                    fputs("[polyptych] loudnorm: online mode\n", stderr)
-                }
+        // Set audio filter: loudnorm + volume for YouTube downloads (identified by cached loudness measurement)
+        let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
+           let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
+            let str = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=2.0dB",
+                m.input_i, m.input_lra, m.input_tp, m.input_thresh)
+            mpv.setAF(str)
+            if debugMode {
+                fputs("[polyptych] loudnorm: cached i=\(m.input_i)\n", stderr)
             }
         } else {
             mpv.clearAF()
