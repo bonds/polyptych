@@ -159,13 +159,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
             if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
                let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-                mpv.setAF("loudnorm=I=-14:measured_I=\(m.input_i):measured_LRA=\(m.input_lra):measured_TP=\(m.input_tp):measured_thresh=\(m.input_thresh)")
+                mpv.setAF("loudnorm=I=-14:measured_I=\(m.input_i):measured_LRA=\(m.input_lra):measured_TP=\(m.input_tp):measured_thresh=\(m.input_thresh),volume=4.0dB")
                 if debugMode {
                     fputs("[polyptych] loudnorm: two-pass (cached) i=\(m.input_i)\n", stderr)
                 }
             } else {
                 // No cache yet — use online mode with volume boost
-                mpv.setAF("loudnorm=I=-14:LRA=11:TP=-1.5,volume=2.0")
+                mpv.setAF("loudnorm=I=-14:LRA=11:TP=-1.5,volume=4.0dB")
                 if debugMode {
                     fputs("[polyptych] loudnorm: online mode\n", stderr)
                 }
