@@ -107,6 +107,11 @@ final class MPVController: @unchecked Sendable {
         cmd(["af", "set", filter])
     }
 
+    /// Append an audio filter to the current chain.
+    func addAF(_ filter: String) {
+        cmd(["af", "add", filter])
+    }
+
     /// Clear all audio filters (for local files — playback at raw volume).
     func clearAF() {
         cmd(["af", "clr", ""])
