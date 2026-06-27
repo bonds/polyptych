@@ -151,24 +151,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if debugMode {
             fputs("[polyptych] startPlayback: audioLanguages=\(cachedConfig.audioLanguages) subtitleLanguages=\(cachedConfig.subtitleLanguages)\n", stderr)
         }
-        mpv.start(file: filePath, isURL: isURL,
-                  audioLanguages: cachedConfig.audioLanguages,
-                  subtitleLanguages: cachedConfig.subtitleLanguages)
 
-        // Set audio filter: loudnorm + configurable volume boost for YouTube downloads
+        // Compute audio filter before mpv.start() so it's set as an option before init
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
+        let audioFilter: String?
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-            let af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
-                m.input_i, m.input_lra, m.input_tp, m.input_thresh, Config.readVolumeBoost())
-            try? "setAF: \(af)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
-            mpv.setAF(af)
+            let boost = Config.readVolumeBoost()
+            audioFilter = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
+                m.input_i, m.input_lra, m.input_tp, m.input_thresh, boost)
+            try? "option: \(audioFilter!)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
             if debugMode {
-                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(Config.readVolumeBoost())\n", stderr)
+                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(boost)\n", stderr)
             }
         } else {
-            mpv.clearAF()
+            audioFilter = nil
         }
+
+        mpv.start(file: filePath, isURL: isURL,
+                  audioLanguages: cachedConfig.audioLanguages,
+                  subtitleLanguages: cachedConfig.subtitleLanguages,
+                  audioFilter: audioFilter)
 
         // Prevent display sleep and screensaver during playback
         IOPMAssertionCreateWithName(

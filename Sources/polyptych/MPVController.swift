@@ -30,7 +30,8 @@ final class MPVController: @unchecked Sendable {
     }
 
     func start(file filePath: String, isURL: Bool = false,
-               audioLanguages: [String] = [], subtitleLanguages: [String] = []) {
+               audioLanguages: [String] = [], subtitleLanguages: [String] = [],
+               audioFilter: String? = nil) {
         guard let mpv = mpv_create() else { fatalError("mpv_create failed") }
         self.mpv = mpv
 
@@ -45,6 +46,10 @@ final class MPVController: @unchecked Sendable {
         mpv_set_option_string(mpv, "ytdl-format", "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]")
         mpv_set_option_string(mpv, "sub-auto", "fuzzy")
         mpv_set_option_string(mpv, "sub-visibility", "no")
+
+        if let af = audioFilter {
+            mpv_set_option_string(mpv, "af", af)
+        }
 
         if isURL {
             mpv_set_option_string(mpv, "cache", "yes")
