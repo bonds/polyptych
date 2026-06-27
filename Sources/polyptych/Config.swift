@@ -25,7 +25,7 @@ struct AppConfig: Codable {
 
 enum Config {
     private static let configDir = "\(NSHomeDirectory())/.config/polyptych"
-    private static let configPath = "\(configDir)/config.json"
+    static let configPath = "\(NSHomeDirectory())/.config/polyptych/config.json"
 
     @inline(never)
     static func load() -> AppConfig {
@@ -39,5 +39,14 @@ enum Config {
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         let data = try? JSONEncoder().encode(config)
         try? data?.write(to: URL(fileURLWithPath: configPath))
+    }
+
+    /// Read volumeBoost directly from the config file. Every call re-reads from disk.
+    static func readVolumeBoost() -> Double {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let val = json["volumeBoost"] as? Double
+        else { return 0.0 }
+        return val
     }
 }

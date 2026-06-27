@@ -160,10 +160,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
             let af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
-                m.input_i, m.input_lra, m.input_tp, m.input_thresh, cachedConfig.volumeBoost)
+                m.input_i, m.input_lra, m.input_tp, m.input_thresh, Config.readVolumeBoost())
             mpv.setAF(af)
             if debugMode {
-                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(cachedConfig.volumeBoost)\n", stderr)
+                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(Config.readVolumeBoost())\n", stderr)
             }
         } else {
             mpv.clearAF()
