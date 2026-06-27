@@ -55,7 +55,7 @@ while true; do
         fi
 
         # Check if already downloaded (with loudness cache)
-        existing_file=$(ls "$YTDL_DIR/${video_id}".* 2>/dev/null | head -1)
+        existing_file=$(ls "$YTDL_DIR/${video_id}".{mp4,mkv,webm,avi} 2>/dev/null | head -1)
         loudness_cache=""
         if [ -n "$existing_file" ] && [ -f "$existing_file" ]; then
             loudness_cache="${existing_file%.*}.loudness.json"
