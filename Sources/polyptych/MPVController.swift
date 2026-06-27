@@ -80,10 +80,7 @@ final class MPVController: @unchecked Sendable {
 
         setupSWRenderContext()
         if let af = audioFilter {
-            let rc = mpv_set_property_string(mpv, "af", af)
-            if rc < 0 {
-                fputs("[polyptych] af property error: \(rc)\n", stderr)
-            }
+            cmd(["change-list", "af", "set", af])
         }
         cmd(["loadfile", filePath])
 
