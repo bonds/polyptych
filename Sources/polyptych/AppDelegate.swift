@@ -155,6 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   subtitleLanguages: cachedConfig.subtitleLanguages)
 
         // Set audio filter: loudnorm + volume for YouTube downloads (identified by cached loudness measurement)
+        // NOTE: mpv's real-time loudnorm undershoots less than ffmpeg's offline pass.
+        //   ffmpeg offline: loudnorm alone → -15.8 LUFS (needs +1.8dB to reach -14 LUFS)
+        //   mpv real-time:  loudnorm alone → -15.1 LUFS (needs +1.0dB to reach -14 LUFS)
+        // The 1.0dB boost was calibrated by dumping mpv's PCM output and measuring with ebur128.
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
