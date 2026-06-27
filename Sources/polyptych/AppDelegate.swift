@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-            let str = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=2.0dB",
+            let str = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=1.8dB",
                 m.input_i, m.input_lra, m.input_tp, m.input_thresh)
             mpv.setAF(str)
             if debugMode {
