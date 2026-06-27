@@ -155,18 +155,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages)
 
-        // Set audio filter: loudnorm + optional volume boost for YouTube downloads
+        // Set audio filter: loudnorm + configurable volume boost for YouTube downloads
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
         if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-            var af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f",
-                m.input_i, m.input_lra, m.input_tp, m.input_thresh)
-            if cachedConfig.volumeBoost != 0 {
-                af += String(format: ",volume=%.1fdB", cachedConfig.volumeBoost)
-            }
+            let af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
+                m.input_i, m.input_lra, m.input_tp, m.input_thresh, cachedConfig.volumeBoost)
             mpv.setAF(af)
             if debugMode {
-                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(cachedConfig.volumeBoost)dB\n", stderr)
+                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(cachedConfig.volumeBoost)\n", stderr)
             }
         } else {
             mpv.clearAF()
