@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
             var af = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f",
                 m.input_i, m.input_lra, m.input_tp, m.input_thresh)
-            if cachedConfig.volumeBoost > 0 {
+            if cachedConfig.volumeBoost != 0 {
                 af += String(format: ",volume=%.1fdB", cachedConfig.volumeBoost)
             }
             mpv.setAF(af)
