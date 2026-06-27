@@ -54,20 +54,28 @@ while true; do
             continue
         fi
 
-        # Check if already downloaded (with loudness cache)
+        # Check if already downloaded
         existing_file=$(ls "$YTDL_DIR/${video_id}".{mp4,mkv,webm,avi} 2>/dev/null | head -1)
         loudness_cache=""
         if [ -n "$existing_file" ] && [ -f "$existing_file" ]; then
-            loudness_cache="${existing_file%.*}.loudness.json"
-            if [ -f "$loudness_cache" ]; then
-                write_status "downloading|100|Launching from cache…"
-                sleep 1
-                write_status "playing|100|Playing on all monitors"
-                touch /tmp/polyptych-about-to-open
-                open_file "$existing_file"
-                sleep 2
-                write_status "idle|0|"
-                continue
+            # Verify the video codec is H.264 (M2 has no hardware AV1/VP9 decoder)
+            codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$existing_file" 2>/dev/null)
+            if [ "$codec" != "h264" ]; then
+                write_status "downloading|0|Slow codec ($codec), re-downloading…"
+                rm -f "$existing_file" "${existing_file%.*}.loudness.json"
+                existing_file=""
+            else
+                loudness_cache="${existing_file%.*}.loudness.json"
+                if [ -f "$loudness_cache" ]; then
+                    write_status "downloading|100|Launching from cache…"
+                    sleep 1
+                    write_status "playing|100|Playing on all monitors"
+                    touch /tmp/polyptych-about-to-open
+                    open_file "$existing_file"
+                    sleep 2
+                    write_status "idle|0|"
+                    continue
+                fi
             fi
         fi
 
