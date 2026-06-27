@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Watches for polyptych YouTube requests, downloads the video, and launches polyptych.
-set -euo pipefail
+set -uo pipefail
 
 export PATH="/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
