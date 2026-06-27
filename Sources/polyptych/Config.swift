@@ -46,7 +46,11 @@ enum Config {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let val = json["volumeBoost"] as? Double
-        else { return 0.0 }
+        else {
+            try? "readVolumeBoost: FAILED (config missing or invalid)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
+            return 0.0
+        }
+        try? "readVolumeBoost: \(val)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
         return val
     }
 }
