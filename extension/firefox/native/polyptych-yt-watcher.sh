@@ -17,6 +17,7 @@ ZEN_PROFILE=$(ls -d "$HOME/Library/Application Support/zen/Profiles/"*.Default\ 
 if [ -n "$ZEN_PROFILE" ]; then
     YTDL_OPTS=("--cookies-from-browser" "firefox:$ZEN_PROFILE")
 fi
+YTDL_OPTS+=("--extractor-args" "youtube:player_client=web_safari")
 
 
 mkdir -p "$YTDL_DIR"
