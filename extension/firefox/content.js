@@ -136,13 +136,14 @@
     // Listen for status updates from background
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.type === "status") {
+        console.log("polyptych: content got status:", msg.status);
         const parts = (msg.status || "").split("|");
         const state = parts[0] || "";
         const pct = parseInt(parts[1], 10) || 0;
         const text = parts[2] || "";
         if (state === "playing") {
           setBar("playing", 100);
-          showToast(text || "Playing on all monitors", 2000);
+          showToast(text || "Playing on all monitors", 4000);
           setTimeout(() => hideBar(), 3000);
         } else if (state === "error") {
           setBar("error", 0);
