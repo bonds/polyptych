@@ -89,34 +89,47 @@ while true; do
         if [ -z "$existing_file" ] || [ ! -f "$existing_file" ]; then
             write_status "downloading|0|Downloading… 0%"
 
-            yt-dlp "${YTDL_OPTS[@]}" --default-search ytsearch \
-                --format "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]" \
-                --merge-output-format mp4 \
-                --output "$YTDL_DIR/%(id)s.%(ext)s" \
-                --print after_move:"$YTDL_DIR/%(id)s.%(ext)s" \
-                --progress --newline \
-                "$url" > /tmp/polyptych-yt-dl-stdout.txt 2>/tmp/polyptych-yt-dl-stderr.txt &
-            DL_PID=$!
+            DL_EXIT=1
+            for attempt in 1 2 3; do
+                yt-dlp "${YTDL_OPTS[@]}" --default-search ytsearch \
+                    --format "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]" \
+                    --merge-output-format mp4 \
+                    --output "$YTDL_DIR/%(id)s.%(ext)s" \
+                    --print after_move:"$YTDL_DIR/%(id)s.%(ext)s" \
+                    --progress --newline \
+                    "$url" > /tmp/polyptych-yt-dl-stdout.txt 2>/tmp/polyptych-yt-dl-stderr.txt &
+                DL_PID=$!
 
-            last_pct=""
-            while kill -0 $DL_PID 2>/dev/null; do
-                if [ -f /tmp/polyptych-yt-dl-stderr.txt ]; then
-                    pct=$(grep -oP '\[download\]\s+\K[0-9.]+(?=%)' /tmp/polyptych-yt-dl-stderr.txt | tail -1)
-                    if [ -n "$pct" ] && [ "$pct" != "$last_pct" ]; then
-                        last_pct="$pct"
-                        int_pct=$(printf "%.0f" "$pct" 2>/dev/null || echo "$pct")
-                        write_status "downloading|${int_pct}|Downloading… ${int_pct}%"
+                last_pct=""
+                while kill -0 $DL_PID 2>/dev/null; do
+                    if [ -f /tmp/polyptych-yt-dl-stderr.txt ]; then
+                        pct=$(grep -oP '\[download\]\s+\K[0-9.]+(?=%)' /tmp/polyptych-yt-dl-stderr.txt | tail -1)
+                        if [ -n "$pct" ] && [ "$pct" != "$last_pct" ]; then
+                            last_pct="$pct"
+                            int_pct=$(printf "%.0f" "$pct" 2>/dev/null || echo "$pct")
+                            write_status "downloading|${int_pct}|Downloading… ${int_pct}%"
+                        fi
                     fi
+                    sleep 0.5
+                done
+
+                wait $DL_PID
+                DL_EXIT=$?
+                if [ $DL_EXIT -eq 0 ]; then
+                    break
                 fi
-                sleep 0.5
+
+                echo "$(date) attempt $attempt failed (exit=$DL_EXIT), $([ $attempt -lt 3 ] && echo "retrying..." || echo "giving up")" >> /tmp/polyptych-watcher-debug.log
+                [ $attempt -eq 1 ] && sleep 5
+                [ $attempt -eq 2 ] && sleep 15
             done
 
-            wait $DL_PID || {
+            if [ $DL_EXIT -ne 0 ]; then
                 write_status "error|0|Download failed"
                 sleep 2
                 write_status "idle|0|"
                 continue
-            }
+            fi
 
             dl_path=$(cat /tmp/polyptych-yt-dl-stdout.txt 2>/dev/null | grep "^$YTDL_DIR/" | tail -1)
             if [ -z "$dl_path" ] || [ ! -f "$dl_path" ]; then
