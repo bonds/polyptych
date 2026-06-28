@@ -19,6 +19,12 @@ if [ -n "$ZEN_PROFILE" ]; then
 fi
 YTDL_OPTS+=("--extractor-args" "youtube:player_client=android")
 
+# Resolution step uses web client (android breaks --print id)
+RESOLVE_OPTS=()
+if [ -n "$ZEN_PROFILE" ]; then
+    RESOLVE_OPTS=("--cookies-from-browser" "firefox:$ZEN_PROFILE")
+fi
+
 
 mkdir -p "$YTDL_DIR"
 echo "idle|0|" > "$STATUS"
@@ -49,7 +55,7 @@ while true; do
         write_status "requesting|10|Resolving video…"
 
         # Resolve video ID from the URL or search query
-        video_id=$(yt-dlp "${YTDL_OPTS[@]}" --default-search ytsearch \
+        video_id=$(yt-dlp "${RESOLVE_OPTS[@]}" --default-search ytsearch \
             --print id \
             --no-warnings \
             "$url" 2>/dev/null | tail -1)
