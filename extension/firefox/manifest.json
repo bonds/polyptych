@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "polyptych",
-  "version": "0.6.1",
+  "version": "0.6.3",
   "description": "Play YouTube videos across all your monitors with polyptych",
   "icons": {
     "48": "icon.svg",
