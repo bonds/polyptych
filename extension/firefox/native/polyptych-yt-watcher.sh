@@ -12,7 +12,11 @@ if [ "${POLYPTYCH:0:1}" = "@" ]; then
     POLYPTYCH="/run/current-system/sw/bin/polyptych"
 fi
 
-COOKIES=("--cookies-from-browser" "firefox:/Users/scott/Library/Application Support/zen/Profiles/z8ofj1q4.Default (release)")
+COOKIES_ARGS=()
+ZEN_PROFILE=$(ls -d "$HOME/Library/Application Support/zen/Profiles/"*.Default\ \(release\) 2>/dev/null | head -1)
+if [ -n "$ZEN_PROFILE" ]; then
+    COOKIES_ARGS=("--cookies-from-browser" "firefox:$ZEN_PROFILE")
+fi
 
 
 mkdir -p "$YTDL_DIR"
@@ -44,7 +48,7 @@ while true; do
         write_status "requesting|10|Resolving video…"
 
         # Resolve video ID from the URL or search query
-        video_id=$(yt-dlp "${COOKIES[@]}" --default-search ytsearch \
+        video_id=$(yt-dlp "${COOKIES_ARGS[@]}" --default-search ytsearch \
             --print id \
             --no-warnings \
             "$url" 2>/dev/null | tail -1)
@@ -85,7 +89,7 @@ while true; do
         if [ -z "$existing_file" ] || [ ! -f "$existing_file" ]; then
             write_status "downloading|0|Downloading… 0%"
 
-            yt-dlp "${COOKIES[@]}" --default-search ytsearch \
+            yt-dlp "${COOKIES_ARGS[@]}" --default-search ytsearch \
                 --format "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]" \
                 --merge-output-format mp4 \
                 --output "$YTDL_DIR/%(id)s.%(ext)s" \

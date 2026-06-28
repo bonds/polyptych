@@ -134,11 +134,8 @@
     }, true);
 
     // Listen for status updates from background
-    console.log("polyptych: registering onMessage listener");
     chrome.runtime.onMessage.addListener((msg) => {
-      console.log("polyptych: content got ANY message:", JSON.stringify(msg));
       if (msg.type === "status") {
-        console.log("polyptych: content got status:", msg.status);
         const parts = (msg.status || "").split("|");
         const state = parts[0] || "";
         const pct = parseInt(parts[1], 10) || 0;

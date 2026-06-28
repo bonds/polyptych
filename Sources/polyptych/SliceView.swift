@@ -46,7 +46,7 @@ final class SliceView: NSView {
         layer.font = NSFont.boldSystemFont(ofSize: 56)
         layer.fontSize = 56
         layer.foregroundColor = NSColor.white.cgColor
-        layer.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.6).cgColor
+        layer.backgroundColor = .clear
         layer.cornerRadius = 8
         layer.alignmentMode = .center
         layer.isWrapped = true
@@ -75,8 +75,10 @@ final class SliceView: NSView {
         let s = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if s.isEmpty {
             layer.string = ""
+            layer.backgroundColor = .clear
             layer.isHidden = true
         } else {
+            layer.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.6).cgColor
             let para = NSMutableParagraphStyle()
             para.alignment = .center
             layer.string = NSAttributedString(string: "\n\(s)\n", attributes: [
