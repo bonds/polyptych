@@ -92,7 +92,7 @@ while true; do
 
             DL_EXIT=1
             for attempt in 1 2 3; do
-                yt-dlp "${YTDL_OPTS[@]}" --default-search ytsearch \
+                env PYTHONUNBUFFERED=1 yt-dlp "${YTDL_OPTS[@]}" --default-search ytsearch \
                     --format "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080]" \
                     --merge-output-format mp4 \
                     --output "$YTDL_DIR/%(id)s.%(ext)s" \
@@ -104,11 +104,11 @@ while true; do
                 last_pct=""
                 while kill -0 $DL_PID 2>/dev/null; do
                     if [ -f /tmp/polyptych-yt-dl-stderr.txt ]; then
-                        pct=$(grep -oP '\[download\]\s+\K[0-9.]+(?=%)' /tmp/polyptych-yt-dl-stderr.txt | tail -1)
+                        pct=$(sed -n 's/^\[download\] *\([0-9.]*\)%.*/\1/p' /tmp/polyptych-yt-dl-stderr.txt | tail -1)
                         if [ -n "$pct" ] && [ "$pct" != "$last_pct" ]; then
                             last_pct="$pct"
                             int_pct=$(printf "%.0f" "$pct" 2>/dev/null || echo "$pct")
-                            write_status "downloading|${int_pct}|Downloading… ${int_pct}%"
+                            [ "$int_pct" -gt 0 ] 2>/dev/null && write_status "downloading|${int_pct}|Downloading… ${int_pct}%"
                         fi
                     fi
                     sleep 0.5
