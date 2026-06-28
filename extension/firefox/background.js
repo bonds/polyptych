@@ -1,4 +1,11 @@
 let port = null;
+let targetTabId = null;
+
+function forwardStatus(status) {
+  if (targetTabId) {
+    chrome.tabs.sendMessage(targetTabId, { type: "status", status }).catch(() => {});
+  }
+}
 
 function connect() {
   try {
@@ -7,7 +14,7 @@ function connect() {
     port.onMessage.addListener((msg) => {
       console.log("polyptych: native msg:", JSON.stringify(msg));
       if (msg && msg.status) {
-        chrome.runtime.sendMessage({ type: "status", status: msg.status }).catch(() => {});
+        forwardStatus(msg.status);
       }
     });
     port.onDisconnect.addListener(() => {
@@ -23,6 +30,7 @@ function connect() {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log("polyptych: got message from content:", JSON.stringify(msg));
   if (msg.type === "play") {
+    targetTabId = sender.tab?.id;
     if (!port) connect();
     if (!port) {
       sendResponse({ error: "native host not found" });
