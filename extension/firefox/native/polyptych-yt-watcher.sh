@@ -97,14 +97,14 @@ while true; do
                     --merge-output-format mp4 \
                     --output "$YTDL_DIR/%(id)s.%(ext)s" \
                     --print after_move:"$YTDL_DIR/%(id)s.%(ext)s" \
-                    --no-progress --progress-template "download:%(progress._percent_str)s" \
+                    --progress --newline \
                     "$url" > /tmp/polyptych-yt-dl-stdout.txt 2>/tmp/polyptych-yt-dl-stderr.txt &
                 DL_PID=$!
 
                 last_pct=""
                 while kill -0 $DL_PID 2>/dev/null; do
                     if [ -f /tmp/polyptych-yt-dl-stderr.txt ]; then
-                        pct=$(sed -n 's/^download: *\([0-9.]*\)%.*/\1/p' /tmp/polyptych-yt-dl-stdout.txt | tail -1)
+                        pct=$(sed -n 's/^\[download\] *\([0-9.]*\)%.*/\1/p' /tmp/polyptych-yt-dl-stdout.txt | tail -1)
                         if [ -n "$pct" ] && [ "$pct" != "$last_pct" ]; then
                             last_pct="$pct"
                             int_pct=$(printf "%.0f" "$pct" 2>/dev/null || echo "$pct")
