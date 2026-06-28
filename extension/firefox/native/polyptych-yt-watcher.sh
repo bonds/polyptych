@@ -74,7 +74,7 @@ while true; do
             else
                 loudness_cache="${existing_file%.*}.loudness.json"
                 if [ -f "$loudness_cache" ]; then
-                    write_status "downloading|100|Launching from cache…"
+                    write_status "downloading|95|Launching from cache…"
                     sleep 1
                     write_status "playing|100|Playing on all monitors"
                     touch /tmp/polyptych-about-to-open
@@ -108,7 +108,10 @@ while true; do
                         if [ -n "$pct" ] && [ "$pct" != "$last_pct" ]; then
                             last_pct="$pct"
                             int_pct=$(printf "%.0f" "$pct" 2>/dev/null || echo "$pct")
-                            [ "$int_pct" -gt 0 ] 2>/dev/null && write_status "downloading|${int_pct}|Downloading… ${int_pct}%"
+                            [ "$int_pct" -gt 0 ] 2>/dev/null && {
+                                mapped=$((5 + int_pct * 75 / 100))
+                                write_status "downloading|${mapped}|Downloading… ${int_pct}%"
+                            }
                         fi
                     fi
                     sleep 0.5
@@ -150,7 +153,7 @@ while true; do
         # Measure loudness for two-pass EBU R128 normalization (matches YouTube)
         loudness_cache="${dl_path%.*}.loudness.json"
         if [ ! -f "$loudness_cache" ]; then
-            write_status "downloading|99|Measuring loudness…"
+            write_status "downloading|80|Measuring loudness…"
             ffmpeg -i "$dl_path" -af "loudnorm=I=-14:LRA=11:print_format=json" \
               -vn -f null - 2>&1 | python3 -c "
 import sys, json
@@ -169,9 +172,20 @@ for line in text.split('\n'):
             result = {k: data[k] for k in ['input_i','input_lra','input_tp','input_thresh']}
             print(json.dumps(result))
             break
-" > "$loudness_cache" 2>/dev/null || true
+" > "$loudness_cache" 2>/dev/null &
+            MEASURE_PID=$!
+            mpct=80
+            while kill -0 $MEASURE_PID 2>/dev/null; do
+                [ "$mpct" -lt 94 ] && mpct=$((mpct + 1))
+                write_status "downloading|${mpct}|Measuring loudness…"
+                sleep 1
+            done
+            wait $MEASURE_PID 2>/dev/null || true
+            write_status "downloading|95|Processing…"
         fi
 
+        write_status "downloading|97|Launching polyptych…"
+        sleep 1
         write_status "playing|100|Playing on all monitors"
         touch /tmp/polyptych-about-to-open
         open_file "$dl_path"
