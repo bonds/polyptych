@@ -54,7 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         mpvController?.savePosition()
-        IOPMAssertionRelease(sleepAssertion)
+        if sleepAssertionHeld {
+            IOPMAssertionRelease(sleepAssertion)
+        }
     }
 
     func applicationWillBecomeActive(_ notification: Notification) {
@@ -62,18 +64,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSCursor.hide()
         mpvController?.cmd(["set", "pause", "no"])
         for w in spannedWindows { w.level = .floating }
-        IOPMAssertionCreateWithName(
-            "NoDisplaySleepAssertion" as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "polyptych video playback" as CFString,
-            &sleepAssertion)
     }
 
     func applicationDidResignActive(_ notification: Notification) {
         NSCursor.unhide()
         mpvController?.cmd(["set", "pause", "yes"])
         for w in spannedWindows { w.level = .normal }
-        IOPMAssertionRelease(sleepAssertion)
+        if sleepAssertionHeld {
+            IOPMAssertionRelease(sleepAssertion)
+            sleepAssertionHeld = false
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -173,12 +173,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   subtitleLanguages: cachedConfig.subtitleLanguages,
                   audioFilter: audioFilter)
 
-        // Prevent display sleep and screensaver during playback
-        IOPMAssertionCreateWithName(
-            "NoDisplaySleepAssertion" as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "polyptych video playback" as CFString,
-            &sleepAssertion)
+        // Sleep assertion managed by playback state via core-idle observation
+        mpv.onPlaybackStateChange = { [weak self] isIdle in
+            self?.setSleepAssertion(active: !isIdle)
+        }
 
         let initAudio = isURL ? 0.0 : (hasDL ? cachedConfig.audioDelay : 0.0)
         audioDelay = initAudio
@@ -503,7 +501,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioDelay: Double = 0
     private var frameDelay: Double = 0
     private var sleepAssertion: IOPMAssertionID = IOPMAssertionID()
+    private var sleepAssertionHeld = false
 
+
+    private func setSleepAssertion(active: Bool) {
+        if active && !sleepAssertionHeld {
+            IOPMAssertionCreateWithName(
+                "NoDisplaySleepAssertion" as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "polyptych video playback" as CFString,
+                &sleepAssertion)
+            sleepAssertionHeld = true
+        } else if !active && sleepAssertionHeld {
+            IOPMAssertionRelease(sleepAssertion)
+            sleepAssertionHeld = false
+        }
+    }
 
     private func saveConfig() {
         var cfg = cachedConfig

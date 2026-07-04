@@ -82,6 +82,8 @@ final class MPVController: @unchecked Sendable {
 
         if mpv_initialize(mpv) < 0 { fatalError("mpv_initialize failed") }
 
+        mpv_observe_property(mpv, 0, "core-idle", MPV_FORMAT_FLAG)
+
         setupSWRenderContext()
         cmd(["loadfile", filePath])
 
@@ -287,6 +289,7 @@ final class MPVController: @unchecked Sendable {
     // MARK: - Private
 
     var onNeedsRender: (() -> Void)?
+    var onPlaybackStateChange: ((Bool) -> Void)?
 
     private func setupSWRenderContext() {
         "sw".withCString { apiType in
@@ -323,6 +326,18 @@ final class MPVController: @unchecked Sendable {
                         s.cmd(["change-list", "af", "set", af])
                     }
                     s.reselectTracks()
+                }
+            }
+            if event.event_id == MPV_EVENT_PROPERTY_CHANGE,
+               let data = event.data {
+                let prop = data.load(as: mpv_event_property.self)
+                if let name = prop.name, String(cString: name) == "core-idle",
+                   prop.format == MPV_FORMAT_FLAG,
+                   let ptr = prop.data {
+                    let isIdle = ptr.load(as: Int32.self) != 0
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onPlaybackStateChange?(isIdle)
+                    }
                 }
             }
             if event.event_id == MPV_EVENT_END_FILE,
