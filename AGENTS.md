@@ -1,5 +1,18 @@
 # polyptych
 
+## Learnings
+
+Surprises and hard-won lessons are logged in `docs/learnings/` (index in
+`docs/learnings/README.md`). Add an entry when you hit something
+non-obvious — especially undefined behavior, macOS quirks, or mpv API
+changes.
+
+## Versions
+
+Keep `flake.nix` (`version`) and `Sources/polyptych/Version.swift`
+(`polyptychVersion`) in sync. Bump the minor version for user-facing
+behavior changes; patch for fixes.
+
 ## Releasing the Firefox extension
 
 ### Prerequisites

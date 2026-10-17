@@ -81,26 +81,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        if debugMode {
-            fputs("[polyptych] openFile: \(filename)\n", stderr)
-        }
-        // If already playing, close current playback and start new file
-        if mpvController != nil {
-            mpvController?.savePosition()
-            mpvController = nil
-            for w in spannedWindows { w.close() }
-            spannedWindows = []
-            sliceViews = []
-            downloadedFile = nil
-        }
+        // macOS delivers the launch argument to both argv and an open event, and
+        // the open event can arrive before applicationDidFinishLaunching runs.
+        // startPlayback() dedupes on the path so the argument isn't played twice.
         NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
-        startPlayback(filePath: filename, isURL: false)
+        startPlayback(filePath: filename, isURL: Self.isURLPath(filename))
         return true
+    }
+
+    private static func isURLPath(_ path: String) -> Bool {
+        path.hasPrefix("ytdl://") || path.hasPrefix("http://") || path.hasPrefix("https://")
+    }
+
+    /// Tear down any in-progress playback and its windows.
+    private func closeCurrentPlayback() {
+        guard mpvController != nil || !spannedWindows.isEmpty else { return }
+        mpvController?.savePosition()
+        mpvController = nil
+        currentPath = nil
+        for w in spannedWindows { w.close() }
+        spannedWindows = []
+        sliceViews = []
+        downloadedFile = nil
     }
 
     // MARK: - Setup
 
     private func startPlayback(filePath: String, isURL: Bool) {
+        // The same path can arrive via both argv and the openFile event; ignore
+        // the duplicate so we don't build a second set of windows.
+        if mpvController != nil, currentPath == filePath { return }
+        closeCurrentPlayback()
+        currentPath = filePath
         cachedConfig = Config.load()
         let screens = DisplayLayout.selectedScreens()
         let union = DisplayLayout.unionRect(of: screens)
@@ -203,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var startupComplete = false
+    private var currentPath: String?
 
     @objc private func screensChanged() {
         guard startupComplete else { return }

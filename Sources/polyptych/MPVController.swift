@@ -133,7 +133,11 @@ final class MPVController: @unchecked Sendable {
 
         let result = "bgra".withCString { fmt in
             var swSize: [Int32] = [renderWidth, renderHeight]
-            var swStride = renderStride
+            // MPV_RENDER_PARAM_SW_STRIDE is a size_t* (pointer-sized, 8 bytes on
+            // 64-bit). Passing an Int32* made mpv read 4 bytes of adjacent
+            // stack memory as the upper half of the stride, so the rendered
+            // frame went to a bogus offset and the buffer stayed black.
+            var swStride = size_t(renderStride)
             return swSize.withUnsafeMutableBufferPointer { sizeBuf in
                 withUnsafeMutablePointer(to: &swStride) { stridePtr in
                     var params: [mpv_render_param] = [

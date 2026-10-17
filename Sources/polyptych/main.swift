@@ -6,6 +6,7 @@ var debugMode = false
 // Redirect stderr to a log file when launched without a terminal (Finder / extension)
 if isatty(STDERR_FILENO) == 0 {
     _ = "/tmp/polyptych.log".withCString { freopen($0, "a", stderr) }
+    setvbuf(stderr, nil, _IONBF, 0)
 }
 
 enum InputMode {
