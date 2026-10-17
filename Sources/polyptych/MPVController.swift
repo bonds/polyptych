@@ -2,6 +2,15 @@ import AppKit
 import Clibmpv
 
 final class MPVController: @unchecked Sendable {
+    /// Holds a weak reference to the controller so mpv's update callback (which
+    /// dispatches to the main queue) can't dereference a deallocated controller
+    /// when playback is torn down while a callback is in flight. The callback
+    /// captures this box strongly; the controller it points to stays weak.
+    private final class CallbackBox {
+        weak var controller: MPVController?
+    }
+
+    private let callbackBox = CallbackBox()
     private var mpv: OpaquePointer?
     private var renderContext: OpaquePointer?
 
@@ -84,13 +93,15 @@ final class MPVController: @unchecked Sendable {
 
         mpv_observe_property(mpv, 0, "core-idle", MPV_FORMAT_FLAG)
 
+        callbackBox.controller = self
         setupSWRenderContext()
         cmd(["loadfile", filePath])
 
-        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        let ctx = Unmanaged.passUnretained(callbackBox).toOpaque()
         mpv_set_wakeup_callback(mpv, { (p: UnsafeMutableRawPointer?) in
             guard let p else { return }
-            Unmanaged<MPVController>.fromOpaque(p).takeUnretainedValue().processEvents()
+            Unmanaged<MPVController.CallbackBox>.fromOpaque(p).takeUnretainedValue()
+                .controller?.processEvents()
         }, ctx)
     }
 
@@ -306,11 +317,11 @@ final class MPVController: @unchecked Sendable {
             }
         }
 
-        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        let ctx = Unmanaged.passUnretained(callbackBox).toOpaque()
         mpv_render_context_set_update_callback(renderContext, { ptr in
             guard let ptr else { return }
-            let this = Unmanaged<MPVController>.fromOpaque(ptr).takeUnretainedValue()
-            DispatchQueue.main.async { this.onNeedsRender?() }
+            let box = Unmanaged<MPVController.CallbackBox>.fromOpaque(ptr).takeUnretainedValue()
+            DispatchQueue.main.async { box.controller?.onNeedsRender?() }
         }, ctx)
     }
 

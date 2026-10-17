@@ -15,6 +15,10 @@ final class SpannedWindow: NSWindow {
         backgroundColor = .black
         hasShadow = false
 
+        // ARC owns this window; without this AppKit would also release it on
+        // close(), over-releasing and crashing in objc_release.
+        isReleasedWhenClosed = false
+
         level = .floating
         collectionBehavior = [.canJoinAllSpaces]
 
