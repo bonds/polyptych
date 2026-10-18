@@ -21,13 +21,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let mode else { return } // launched via Finder with no args — wait for openFile
         switch mode {
         case .file(let path):
-            guard FileManager.default.fileExists(atPath: path) else {
-                fputs("polyptych: file not found: \(path)\n", stderr)
-                NSApp.terminate(nil as Any?)
-                return
-            }
-            DispatchQueue.main.async { [self] in
-                startPlayback(filePath: path, isURL: false)
+            // fileExists() can block on a network mount (SMB); check off-main.
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let exists = FileManager.default.fileExists(atPath: path)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard exists else {
+                        fputs("polyptych: file not found: \(path)\n", stderr)
+                        NSApp.terminate(nil as Any?)
+                        return
+                    }
+                    self.startPlayback(filePath: path, isURL: false)
+                }
             }
 
         case .url(let url):
@@ -186,22 +191,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fputs("[polyptych] startPlayback: audioLanguages=\(cachedConfig.audioLanguages) subtitleLanguages=\(cachedConfig.subtitleLanguages)\n", stderr)
         }
 
-        // Compute audio filter before mpv.start() so it's set as an option before init
+        // The loudness sidecar sits next to the media file, which may be on a
+        // slow network mount (SMB). Read it off the main thread so a cold
+        // lookup can't freeze the UI before playback starts.
         let cachePath = (filePath as NSString).deletingPathExtension + ".loudness.json"
-        let audioFilter: String?
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
-           let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) {
-            let boost = Config.readVolumeBoost()
-            audioFilter = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
-                m.input_i, m.input_lra, m.input_tp, m.input_thresh, boost)
-            try? "option: \(audioFilter!)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
-            if debugMode {
-                fputs("[polyptych] loudnorm: cached i=\(m.input_i) boost=\(boost)\n", stderr)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let audioFilter = Self.loudnessFilter(cachePath: cachePath)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.currentPath == filePath,
+                      let mpv = self.mpvController else { return }
+                self.beginMPVPlayback(mpv: mpv, filePath: filePath, isURL: isURL,
+                                      hasDL: hasDL, audioFilter: audioFilter)
             }
-        } else {
-            audioFilter = nil
         }
+    }
 
+    /// Build the loudnorm filter from the cached measurement, if present. Runs
+    /// off the main thread; only local config (the volume boost) is read here.
+    private static func loudnessFilter(cachePath: String) -> String? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
+              let m = try? JSONDecoder().decode(LoudnessMeasurement.self, from: data) else {
+            return nil
+        }
+        let boost = Config.readVolumeBoost()
+        let filter = String(format: "loudnorm=I=-14:measured_I=%.2f:measured_LRA=%.2f:measured_TP=%.2f:measured_thresh=%.2f,volume=%.1fdB",
+            m.input_i, m.input_lra, m.input_tp, m.input_thresh, boost)
+        try? "option: \(filter)\n".write(toFile: "/tmp/polyptych-filter.log", atomically: true, encoding: .utf8)
+        return filter
+    }
+
+    /// Start mpv and wire up callbacks. Split out so the (possibly slow)
+    /// loudness-cache read above happens off the main thread.
+    private func beginMPVPlayback(mpv: MPVController, filePath: String, isURL: Bool,
+                                  hasDL: Bool, audioFilter: String?) {
         mpv.start(file: filePath, isURL: isURL,
                   audioLanguages: cachedConfig.audioLanguages,
                   subtitleLanguages: cachedConfig.subtitleLanguages,

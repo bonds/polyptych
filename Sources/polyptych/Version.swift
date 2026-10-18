@@ -1,1 +1,1 @@
-let polyptychVersion = "0.11.1"
+let polyptychVersion = "0.11.2"
