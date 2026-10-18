@@ -11,10 +11,11 @@ Compensates for DisplayLink USB adapter latency and monitor bezels.
   `NSApplication.activate()` and `NSApp.presentationOptions`.
 - **Two or more displays.** It spans every connected display; with one
   display it simply plays fullscreen.
-- **mpv with libmpv** to build from source (the nix flake provides it).
-- **`yt-dlp`** on `$PATH` to play YouTube URLs (`<url>` / `--youtube`) and
-  for the Firefox extension's native host. The extension watcher also uses
-  **`ffmpeg`** to measure loudness for volume normalisation.
+
+The nix package bundles the rest: **libmpv**, and **`yt-dlp`** / **`ffmpeg`**
+(used to fetch YouTube streams and measure loudness). Building from source
+outside nix instead needs mpv with libmpv, plus `yt-dlp` (and `ffmpeg` for
+the extension watcher).
 
 ## Installation
 
@@ -111,9 +112,8 @@ Adds a button to the YouTube player that launches the video in polyptych.
 The extension sends the video URL via `chrome.runtime.connectNative` to
 `com.polyptych.youtube`, which writes it to `/tmp/polyptych-yt-request`.
 A LaunchAgent watcher (`com.polyptych.watcher`) polls this file and launches
-polyptych. The nix package installs both the native host and the LaunchAgent.
-
-Requires `yt-dlp` on `$PATH` (the LaunchAgent sets `PATH` explicitly).
+polyptych. The nix package installs both the native host and the LaunchAgent, and
+bundles `yt-dlp`/`ffmpeg` (the LaunchAgent's `PATH` points at them).
 
 ## Debug mode
 

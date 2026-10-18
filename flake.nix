@@ -14,19 +14,22 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           libmpv = pkgs.mpv.override { scripts = [ ]; };
+          # Runtime tools the app and the extension watcher shell out to.
+          runtimeDeps = with pkgs; [ yt-dlp ffmpeg ];
         in
         {
           default = pkgs.stdenv.mkDerivation {
             pname = "polyptych";
-            version = "0.11.2";
+            version = "0.11.3";
             src = self;
 
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           buildInputs = with pkgs; [
             swift
             swiftpm
             libmpv
             zip
-          ];
+          ] ++ runtimeDeps;
 
             buildPhase = ''
               cat > Sources/polyptych/Version.generated.swift << SWIFT_EOF
@@ -45,8 +48,11 @@
               cp ${./Sources/polyptych/Info.plist} \
                 $out/Applications/polyptych.app/Contents/Info.plist
               mkdir -p $out/bin
-              ln -s $out/Applications/polyptych.app/Contents/MacOS/polyptych \
-                $out/bin/polyptych
+              # Wrap so the app finds yt-dlp/ffmpeg on PATH at runtime (it shells
+              # out to them) instead of relying on the user's environment.
+              makeWrapper $out/Applications/polyptych.app/Contents/MacOS/polyptych \
+                $out/bin/polyptych \
+                --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
 
               # Native messaging host for Firefox extension
               mkdir -p $out/bin
@@ -62,7 +68,8 @@
               # Watcher LaunchAgent
               substitute ${./extension/firefox/native/polyptych-yt-watcher.sh} \
                 $out/bin/polyptych-yt-watcher \
-                --replace-fail '@polyptych_bin@' "$out/bin/polyptych"
+                --replace-fail '@polyptych_bin@' "$out/bin/polyptych" \
+                --replace-fail '@runtime_path@' "${pkgs.lib.makeBinPath runtimeDeps}"
               chmod +x $out/bin/polyptych-yt-watcher
 
               mkdir -p $out/lib/LaunchAgents

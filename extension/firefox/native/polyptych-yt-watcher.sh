@@ -2,7 +2,7 @@
 # Watches for polyptych YouTube requests, downloads the video, and launches polyptych.
 set -uo pipefail
 
-export PATH="/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="@runtime_path@:/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 REQUEST="/tmp/polyptych-yt-request"
 STATUS="/tmp/polyptych-yt-status"
