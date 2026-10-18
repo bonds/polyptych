@@ -18,6 +18,11 @@ than deleting it.
 
 ## Entries
 
+- [2026-06-21 — DisplayLink screens need per-slice CGImages](2026-06-21-displaylink-per-slice-cgimages.md)
+- [2026-06-21 — Hardware decode was slower than software on M2 (1080p H.264)](2026-06-21-m2-software-decode-faster.md)
+- [2026-06-21 — `video-sync=desync` avoids the audio gate but drifts A/V](2026-06-21-video-sync-desync-av-drift.md)
+- [2026-06-21 — Drive rendering from mpv's update callback, not a timer](2026-06-21-render-loop-update-callback.md)
+- [2026-06-21 — Force H.264 for YouTube downloads on M2](2026-06-21-force-h264-youtube.md)
 - [2026-10-17 — mpv SW renderer `SW_STRIDE` is a `size_t*`](2026-10-17-mpv-sw-render-stride.md)
 - [2026-10-17 — macOS delivers the launch argument twice](2026-10-17-macos-openfile-double-launch.md)
 - [2026-10-17 — mpv callbacks and controller lifetime](2026-10-17-mpv-callback-lifetime.md)

@@ -5,6 +5,17 @@ A painting, typically an altarpiece, composed of multiple panels.
 Polyptych is a fullscreen video player that spans across multiple displays.
 Compensates for DisplayLink USB adapter latency and monitor bezels.
 
+## Requirements
+
+- **macOS 14 (Sonoma) or later.** The package targets macOS 14 and uses
+  `NSApplication.activate()` and `NSApp.presentationOptions`.
+- **Two or more displays.** It spans every connected display; with one
+  display it simply plays fullscreen.
+- **mpv with libmpv** to build from source (the nix flake provides it).
+- **`yt-dlp`** on `$PATH` to play YouTube URLs (`<url>` / `--youtube`) and
+  for the Firefox extension's native host. The extension watcher also uses
+  **`ffmpeg`** to measure loudness for volume normalisation.
+
 ## Installation
 
 ### Nix flake
@@ -104,44 +115,7 @@ polyptych. The nix package installs both the native host and the LaunchAgent.
 
 Requires `yt-dlp` on `$PATH` (the LaunchAgent sets `PATH` explicitly).
 
-## Performance notes
-
-### DisplayLink + CALayer
-
-DisplayLink USB adapters have a significant CA commit cost when `layer.contents` changes
-(~50ms per screen). With two DisplayLink screens, this limits frame rate to ~9fps when using
-a single shared CGImage with `contentsRect` (because the full-size CGImage must be transferred
-over USB even though only a portion is displayed).
-
-**Use per-slice CGImages instead.** Creating a separate CGImage for each display's slice
-(~640×1080 instead of 1920×1080) reduces the USB transfer size, bringing frame rate to
-the video's native rate (24fps).
-
-### What didn't work
-
-- **`hwdec=videotoolbox-copy`** — GPU→CPU sync stall dropped FPS to 7–9.
-  Pure software decode (`hwdec=no`) is faster on M2 for 1080p H.264.
-- **IOSurface as `layer.contents`** — works on native screens but DisplayLink
-  shows a blank screen (DisplayLink driver can't read IOSurface GPU memory).
-- **`contentsRect` with shared CGImage** — full-size CGImage transfer over USB is
-  the bottleneck (~100ms total for 2 DisplayLink screens).
-- **`video-sync=desync`** — avoids the audio gate but causes AV drift; can also cause
-  `mpv_render_context_render` to block waiting for new frames.
-- **60Hz timer for render loop** — fires unnecessarily when no new frame is available.
-  mpv's update callback (`mpv_render_context_set_update_callback`) is more efficient.
-- **VP9/AV1 YouTube streams** — M2 has no hardware decoder for these. Force H.264 in
-  yt-dlp format: `bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080]`.
-
-### What worked
-
-- **Per-slice CGImages** (one per display, from triple-buffered SW render output)
-- **`hwdec=no`** (pure software decode with FFmpeg on M2)
-- **`video-sync=audio`** (proper AV sync via audio clock)
-- **mpv update callback** for render scheduling (no polling)
-- **Triple buffering** (safe shared CGImage from the render buffer)
-- **H.264 YouTube downloads** via yt-dlp format filter
-
-### Debug mode
+## Debug mode
 
 Run with `--debug` to see FPS, timing breakdown, and video properties:
 
