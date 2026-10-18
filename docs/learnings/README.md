@@ -22,3 +22,5 @@ than deleting it.
 - [2026-10-17 — macOS delivers the launch argument twice](2026-10-17-macos-openfile-double-launch.md)
 - [2026-10-17 — mpv callbacks and controller lifetime](2026-10-17-mpv-callback-lifetime.md)
 - [2026-10-17 — NSWindow `close()` over-releases under ARC](2026-10-17-nswindow-released-when-closed.md)
+- [2026-10-17 — mpv's clock can stall after a seek or at startup](2026-10-17-mpv-clock-stall.md)
+- [2026-10-17 — `activateIgnoringOtherApps` is a no-op on macOS 14+](2026-10-17-macos-activation-menu-bar.md)

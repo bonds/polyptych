@@ -62,12 +62,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillBecomeActive(_ notification: Notification) {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         NSCursor.hide()
+        wantsPlaying = true
         mpvController?.cmd(["set", "pause", "no"])
-        for w in spannedWindows { w.level = .floating }
+        for w in spannedWindows { w.level = Self.playbackLevel }
     }
 
     func applicationDidResignActive(_ notification: Notification) {
         NSCursor.unhide()
+        wantsPlaying = false
         mpvController?.cmd(["set", "pause", "yes"])
         for w in spannedWindows { w.level = .normal }
         if sleepAssertionHeld {
@@ -84,10 +86,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // macOS delivers the launch argument to both argv and an open event, and
         // the open event can arrive before applicationDidFinishLaunching runs.
         // startPlayback() dedupes on the path so the argument isn't played twice.
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        activateApp()
         startPlayback(filePath: filename, isURL: Self.isURLPath(filename))
         return true
     }
+
+    /// Activate the app. `NSRunningApplication.activate(options:)` with
+    /// `.activateIgnoringOtherApps` is a no-op on macOS 14+, so the app often
+    /// stayed inactive and the menu bar stayed visible over the video.
+    private func activateApp() {
+        NSApp.activate()
+    }
+
+    /// Above the menu bar (kCGMainMenuWindowLevel = 24) so the video covers it
+    /// even if the app is not the active app.
+    private static let playbackLevel: NSWindow.Level = .screenSaver
 
     private static func isURLPath(_ path: String) -> Bool {
         path.hasPrefix("ytdl://") || path.hasPrefix("http://") || path.hasPrefix("https://")
@@ -96,6 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tear down any in-progress playback and its windows.
     private func closeCurrentPlayback() {
         guard mpvController != nil || !spannedWindows.isEmpty else { return }
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
+        wantsPlaying = false
         mpvController?.savePosition()
         mpvController = nil
         currentPath = nil
@@ -139,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             view.displayID = DisplayDetector.displayID(for: s)
             let win = SpannedWindow(screenFrame: s.frame)
             win.contentView = view
+            win.level = Self.playbackLevel
             spannedWindows.append(win)
             sliceViews.append(view)
             win.makeKeyAndOrderFront(nil)
@@ -157,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Activate the app to receive keyboard events
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        activateApp()
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
 
         if debugMode {
@@ -198,6 +215,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.renderFrame()
         }
 
+        wantsPlaying = true
+        startFrameRateWatchdog()
+
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if self?.handleKey(event) ?? false { return nil }
             return event
@@ -216,6 +236,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var startupComplete = false
     private var currentPath: String?
+
+    // MARK: - Frame-rate watchdog
+
+    /// True when the app should be playing (active, not user-paused). A resync
+    /// must not un-pause playback the user deliberately paused or that we
+    /// paused because the app lost focus.
+    private var wantsPlaying = false
+    private var renderedFrameCount = 0
+    private var hasRenderedFrame = false
+    private var fpsWindowStart = CFAbsoluteTimeGetCurrent()
+    private var lowFpsSince: CFAbsoluteTime = 0
+    private var lastResync: CFAbsoluteTime = 0
+    private var resyncing = false
+    private var watchdogTimer: Timer?
+
+    /// mpv's clock can stall after a seek or at startup, gating video on the
+    /// audio clock and dropping to a few fps until playback is re-synced.
+    /// Poll the rendered frame rate and, if it stays far below the video rate
+    /// while we should be playing, bounce pause to reset mpv's clock.
+    private func startFrameRateWatchdog() {
+        watchdogTimer?.invalidate()
+        fpsWindowStart = CFAbsoluteTimeGetCurrent()
+        renderedFrameCount = 0
+        hasRenderedFrame = false
+        lowFpsSince = 0
+        watchdogTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.checkFrameRate()
+        }
+    }
+
+    private func checkFrameRate() {
+        guard let mpv = mpvController else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - fpsWindowStart
+        guard elapsed >= 1.0 else { return }
+        let fps = Double(renderedFrameCount) / elapsed
+        renderedFrameCount = 0
+        fpsWindowStart = now
+
+        // `estimated-vf-fps` drops to 0 exactly when frames stall, so use the
+        // container's (constant) frame rate as the reference. It is unavailable
+        // until the video is loaded, which is also when we must not act.
+        let vfps = mpv.readPropDouble("container-fps") ?? 0
+        // Only a problem while we should actually be playing. `core-idle` can
+        // be true during the stall too, so it is not a reliable skip signal.
+        guard wantsPlaying, !resyncing, hasRenderedFrame, vfps > 1,
+              mpv.readPropFlag("pause") != true else {
+            lowFpsSince = 0
+            return
+        }
+
+        if fps < vfps * 0.5 {
+            if lowFpsSince == 0 { lowFpsSince = now }
+            if now - lowFpsSince >= 2.0, now - lastResync >= 5.0 {
+                resyncPlayback()
+                lastResync = now
+                lowFpsSince = 0
+            }
+        } else {
+            lowFpsSince = 0
+        }
+    }
+
+    /// Bounce pause to reset mpv's playback clock (the manual space-space
+    /// workaround, done automatically).
+    private func resyncPlayback() {
+        guard let mpv = mpvController else { return }
+        resyncing = true
+        fputs("[polyptych] low frame rate — resyncing playback\n", stderr)
+        mpv.cmd(["set", "pause", "yes"])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            self.resyncing = false
+            if self.wantsPlaying {
+                self.mpvController?.cmd(["set", "pause", "no"])
+            }
+        }
+    }
 
     @objc private func screensChanged() {
         guard startupComplete else { return }
@@ -395,6 +493,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderFrame() {
         guard let mpv = mpvController else { return }
+        renderedFrameCount += 1
+        hasRenderedFrame = true
         renderAttempts += 1
         let fStart = CFAbsoluteTimeGetCurrent()
 
@@ -553,7 +653,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             if let chars = event.characters {
                 switch chars {
-                case " ": mpv.cmd(["cycle", "pause"]); return true
+                case " ":
+                    wantsPlaying.toggle()
+                    mpv.cmd(["set", "pause", wantsPlaying ? "no" : "yes"])
+                    return true
                 case "q", "\u{1b}":
                     mpv.savePosition()
                     NSApp.terminate(nil as Any?)

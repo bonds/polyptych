@@ -204,6 +204,12 @@ final class MPVController: @unchecked Sendable {
         return mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &val) >= 0 ? val : nil
     }
 
+    func readPropFlag(_ name: String) -> Bool? {
+        guard let mpv else { return nil }
+        var val = Int32(0)
+        return mpv_get_property(mpv, name, MPV_FORMAT_FLAG, &val) >= 0 ? (val != 0) : nil
+    }
+
     func readPropInt64(_ name: String) -> Int64? {
         guard let mpv else { return nil }
         var val = Int64(0)
