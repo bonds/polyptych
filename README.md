@@ -42,6 +42,8 @@ polyptych <url>                           # play network stream
 polyptych --youtube <search terms>         # download + play YouTube 1080p
 ```
 
+Run `polyptych --help` for the full usage, options, and controls.
+
 Configuration is stored in `~/.config/polyptych/config.json`.
 
 ## Controls

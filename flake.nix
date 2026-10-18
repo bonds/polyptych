@@ -18,7 +18,7 @@
         {
           default = pkgs.stdenv.mkDerivation {
             pname = "polyptych";
-            version = "0.10.3";
+            version = "0.11.0";
             src = self;
 
           buildInputs = with pkgs; [

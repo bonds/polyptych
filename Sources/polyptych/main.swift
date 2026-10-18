@@ -15,6 +15,34 @@ enum InputMode {
     case youtubeSearch(String, noCache: Bool)
 }
 
+func printUsage() {
+    print("""
+    polyptych \(polyptychVersion) (\(polyptychCommit)) — fullscreen video across multiple displays
+
+    USAGE:
+      polyptych <file>                    Play a local file
+      polyptych <url>                     Play a network stream (YouTube etc.)
+      polyptych --youtube <search terms>  Search YouTube, download 1080p, and play
+      polyptych --no-cache --youtube <search terms>
+                                          Same, but ignore the download cache
+
+    OPTIONS:
+      -h, --help                          Show this help and exit
+      -v, --version                       Show the version and exit
+      -d, --debug                         Print fps/timing diagnostics to stderr
+
+    CONTROLS:
+      Space                               Pause / resume
+      ← →                                 Seek -5s / +5s
+      ↓ ↑                                 Seek -60s / +60s
+      [ ]                                 Audio delay -/+ 50ms
+      { }                                 Frame delay -/+ 50ms
+      q, Esc                              Quit (saves position for resume)
+
+    Configuration: ~/.config/polyptych/config.json
+    """)
+}
+
 func parseArgs() -> InputMode? {
     // Extract --debug from anywhere, keep the rest as args
     let allArgs = CommandLine.arguments.dropFirst()
@@ -32,6 +60,11 @@ func parseArgs() -> InputMode? {
     }
 
     guard let first = args.first else { return nil }
+
+    if first == "--help" || first == "-h" {
+        printUsage()
+        exit(0)
+    }
 
     if first == "--version" || first == "-v" {
         print("polyptych \(polyptychVersion) (\(polyptychCommit))")
