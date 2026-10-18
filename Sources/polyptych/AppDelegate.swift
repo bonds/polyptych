@@ -63,7 +63,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         NSCursor.hide()
         wantsPlaying = true
-        mpvController?.cmd(["set", "pause", "no"])
+        // Don't un-pause here if mpv is still starting paused; the initial
+        // PLAYBACK_RESTART un-pauses once playback is actually ready.
+        if !pendingInitialUnpause {
+            mpvController?.cmd(["set", "pause", "no"])
+        }
         for w in spannedWindows { w.level = Self.playbackLevel }
     }
 
@@ -215,13 +219,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mpv.onNeedsRender = { [weak self] in
             self?.renderFrame()
         }
-        // mpv's clock can stall on start and after seeks; bounce pause once
-        // playback has restarted (the manual space-space workaround).
+        // mpv starts paused so the playback clock initializes at un-pause; do
+        // that on the first PLAYBACK_RESTART, and resync on later ones (seeks).
         mpv.onPlaybackRestart = { [weak self] in
-            self?.scheduleResyncAfterRestart()
+            guard let self else { return }
+            if self.pendingInitialUnpause {
+                self.pendingInitialUnpause = false
+                if self.wantsPlaying {
+                    // Treat this un-pause as the resync so the follow-up
+                    // PLAYBACK_RESTART it triggers doesn't resync again.
+                    self.lastResync = CFAbsoluteTimeGetCurrent()
+                    self.mpvController?.cmd(["set", "pause", "no"])
+                }
+            } else {
+                self.scheduleResyncAfterRestart()
+            }
         }
 
         wantsPlaying = true
+        pendingInitialUnpause = true
         startFrameRateWatchdog()
         beginPlaybackActivity()
 
@@ -256,6 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lowFpsSince: CFAbsoluteTime = 0
     private var lastResync: CFAbsoluteTime = 0
     private var resyncing = false
+    private var pendingInitialUnpause = false
     private var watchdogTimer: Timer?
     private var activityToken: NSObjectProtocol?
 

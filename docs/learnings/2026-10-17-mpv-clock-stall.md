@@ -29,19 +29,23 @@ pause/unpause workaround fixes it.
 
 ## Fix / takeaway
 
-mpv emits `MPV_EVENT_PLAYBACK_RESTART` on start of playback **and after
-each seek** — exactly the two points where the stall happens. Resync there:
-bounce pause (`pause=yes`, then `pause=no` after ~200ms) a moment after
-playback restarts. This directly automates the space-space workaround at the
-right moments, instead of trying to infer it from the frame rate.
+Toggling pause resets mpv's playback clock. Rather than resync *after* the
+video is already playing (which shows as a freeze mid-play — a visible
+hitch), have mpv **start paused** (`pause=yes` before init) and un-pause once
+playback is ready. The clock then initializes at un-pause instead of at load,
+so the stall never happens and there is no mid-playback hitch.
+
+Trigger the initial un-pause on the first `MPV_EVENT_PLAYBACK_RESTART` (it
+fires on start of playback and after every seek). Later `PLAYBACK_RESTART`s
+(after a seek) do a resync — bounce pause — since the clock can stall there
+too. Debounce resyncs (~1.5s): the un-pause that ends a resync itself fires
+`PLAYBACK_RESTART`, which would otherwise loop.
 
 Keep an fps watchdog as a backstop for stalls that don't come with a
 `PLAYBACK_RESTART` (a mid-playback clock stall): poll the rendered fps and,
 if it stays below 60% of `container-fps` for ~2s while playing, resync. It
 needs "the video is loaded" (`container-fps > 1`) and "we have rendered at
 least one frame" guards, or it fires during normal initial buffering.
-Debounce resyncs (~1.5s): the un-pause that ends a resync itself fires
-`PLAYBACK_RESTART`, which would otherwise loop.
 
 Two traps found along the way:
 
@@ -53,6 +57,8 @@ Two traps found along the way:
   used as the reference. `container-fps` stays constant.
 
 **Lesson:** for a known stall trigger, hook the mpv event that marks it
-(`PLAYBACK_RESTART`) rather than trying to detect the symptom. Don't use
-`estimated-vf-fps` to detect a stall, and prevent App Nap or background
-throttling silently disables any timer-based watchdog.
+(`PLAYBACK_RESTART`) rather than trying to detect the symptom. Initialize the
+clock by starting paused and un-pausing, rather than pausing a playing video
+(which the user sees as a hitch). Don't use `estimated-vf-fps` to detect a
+stall, and prevent App Nap or background throttling silently disables any
+timer-based watchdog.
