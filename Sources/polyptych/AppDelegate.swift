@@ -111,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard mpvController != nil || !spannedWindows.isEmpty else { return }
         watchdogTimer?.invalidate()
         watchdogTimer = nil
+        endPlaybackActivity()
         wantsPlaying = false
         mpvController?.savePosition()
         mpvController = nil
@@ -217,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         wantsPlaying = true
         startFrameRateWatchdog()
+        beginPlaybackActivity()
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if self?.handleKey(event) ?? false { return nil }
@@ -249,7 +251,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lowFpsSince: CFAbsoluteTime = 0
     private var lastResync: CFAbsoluteTime = 0
     private var resyncing = false
+    private var launchResyncDone = false
     private var watchdogTimer: Timer?
+    private var activityToken: NSObjectProtocol?
+
+    /// Keep macOS from App-Napping us while playing. When the app is not the
+    /// active app (e.g. launched from a terminal) App Nap throttles timers,
+    /// which can stall the render loop and the frame-rate watchdog alike.
+    private func beginPlaybackActivity() {
+        guard activityToken == nil else { return }
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "polyptych video playback")
+    }
+
+    private func endPlaybackActivity() {
+        if let token = activityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            activityToken = nil
+        }
+    }
 
     /// mpv's clock can stall after a seek or at startup, gating video on the
     /// audio clock and dropping to a few fps until playback is re-synced.
@@ -261,6 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         renderedFrameCount = 0
         hasRenderedFrame = false
         lowFpsSince = 0
+        launchResyncDone = false
         watchdogTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.checkFrameRate()
         }
@@ -279,6 +301,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // container's (constant) frame rate as the reference. It is unavailable
         // until the video is loaded, which is also when we must not act.
         let vfps = mpv.readPropDouble("container-fps") ?? 0
+        if debugMode {
+            fputs("[polyptych] wd fps=\(Int(fps)) wants=\(wantsPlaying) pause=\(String(describing: mpv.readPropFlag("pause"))) rendered=\(hasRenderedFrame) cfps=\(vfps) resync=\(resyncing)\n", stderr)
+        }
         // Only a problem while we should actually be playing. `core-idle` can
         // be true during the stall too, so it is not a reliable skip signal.
         guard wantsPlaying, !resyncing, hasRenderedFrame, vfps > 1,
@@ -287,7 +312,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if fps < vfps * 0.5 {
+        // At startup mpv's clock is often slightly off; if the first second
+        // after the video loads is slow, do one resync (the space-space
+        // workaround, automated) instead of waiting for the persistent-stall
+        // path below.
+        if !launchResyncDone {
+            launchResyncDone = true
+            if fps < vfps * 0.8 {
+                resyncPlayback()
+                lastResync = now
+                return
+            }
+        }
+
+        if fps < vfps * 0.6 {
             if lowFpsSince == 0 { lowFpsSince = now }
             if now - lowFpsSince >= 2.0, now - lastResync >= 5.0 {
                 resyncPlayback()
