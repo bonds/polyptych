@@ -16,31 +16,49 @@ enum InputMode {
 }
 
 func printUsage() {
-    print("""
-    polyptych \(polyptychVersion) (\(polyptychCommit)) — fullscreen video across multiple displays
+    // Color only when stdout is a terminal (and the user hasn't opted out).
+    let env = ProcessInfo.processInfo.environment
+    let useColor: Bool
+    if env["NO_COLOR"] != nil || env["TERM"] == "dumb" {
+        useColor = false
+    } else if let force = env["CLICOLOR_FORCE"], force != "0" {
+        useColor = true
+    } else {
+        useColor = isatty(STDOUT_FILENO) != 0
+    }
 
-    USAGE:
-      polyptych <file>                    Play a local file
-      polyptych <url>                     Play a network stream (YouTube etc.)
-      polyptych --youtube <search terms>  Search YouTube, download 1080p, and play
-      polyptych --no-cache --youtube <search terms>
-                                          Same, but ignore the download cache
+    func paint(_ code: String, _ s: String) -> String {
+        useColor ? "\u{001B}[\(code)m\(s)\u{001B}[0m" : s
+    }
+    func heading(_ s: String) -> String { paint("1", s) }
+    func row(_ lhs: String, _ rhs: String) -> String {
+        let width = 42
+        let pad = max(1, width - lhs.count)
+        return "  " + paint("1;36", lhs) + String(repeating: " ", count: pad) + rhs
+    }
 
-    OPTIONS:
-      -h, --help                          Show this help and exit
-      -v, --version                       Show the version and exit
-      -d, --debug                         Print fps/timing diagnostics to stderr
-
-    CONTROLS:
-      Space                               Pause / resume
-      ← →                                 Seek -5s / +5s
-      ↓ ↑                                 Seek -60s / +60s
-      [ ]                                 Audio delay -/+ 50ms
-      { }                                 Frame delay -/+ 50ms
-      q, Esc                              Quit (saves position for resume)
-
-    Configuration: ~/.config/polyptych/config.json
-    """)
+    print(paint("1", "polyptych \(polyptychVersion) (\(polyptychCommit))") + " " + paint("2", "— fullscreen video across multiple displays"))
+    print()
+    print(heading("USAGE:"))
+    print(row("polyptych <file>", "Play a local file"))
+    print(row("polyptych <url>", "Play a network stream (YouTube etc.)"))
+    print(row("polyptych --youtube <search terms>", "Search YouTube, download 1080p, and play"))
+    print(row("polyptych --no-cache --youtube <terms>", "Same, but ignore the download cache"))
+    print()
+    print(heading("OPTIONS:"))
+    print(row("-h, --help", "Show this help and exit"))
+    print(row("-v, --version", "Show the version and exit"))
+    print(row("-d, --debug", "Print fps/timing diagnostics to stderr"))
+    print()
+    print(heading("CONTROLS:"))
+    print(row("Space", "Pause / resume"))
+    print(row("← →", "Seek -5s / +5s"))
+    print(row("↓ ↑", "Seek -60s / +60s"))
+    print(row("[ ]", "Audio delay -/+ 50ms"))
+    print(row("{ }", "Frame delay -/+ 50ms"))
+    print(row("q, Esc", "Quit (saves position for resume)"))
+    print()
+    print(paint("2", "Configuration: ~/.config/polyptych/config.json"))
 }
 
 func parseArgs() -> InputMode? {
