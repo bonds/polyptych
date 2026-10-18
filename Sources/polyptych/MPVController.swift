@@ -311,6 +311,8 @@ final class MPVController: @unchecked Sendable {
 
     var onNeedsRender: (() -> Void)?
     var onPlaybackStateChange: ((Bool) -> Void)?
+    /// Fired on start of playback and after each seek (MPV_EVENT_PLAYBACK_RESTART).
+    var onPlaybackRestart: (() -> Void)?
 
     private func setupSWRenderContext() {
         "sw".withCString { apiType in
@@ -347,6 +349,11 @@ final class MPVController: @unchecked Sendable {
                         s.cmd(["change-list", "af", "set", af])
                     }
                     s.reselectTracks()
+                }
+            }
+            if event.event_id == MPV_EVENT_PLAYBACK_RESTART {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onPlaybackRestart?()
                 }
             }
             if event.event_id == MPV_EVENT_PROPERTY_CHANGE,

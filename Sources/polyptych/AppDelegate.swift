@@ -215,6 +215,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mpv.onNeedsRender = { [weak self] in
             self?.renderFrame()
         }
+        // mpv's clock can stall on start and after seeks; bounce pause once
+        // playback has restarted (the manual space-space workaround).
+        mpv.onPlaybackRestart = { [weak self] in
+            self?.scheduleResyncAfterRestart()
+        }
 
         wantsPlaying = true
         startFrameRateWatchdog()
@@ -251,7 +256,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lowFpsSince: CFAbsoluteTime = 0
     private var lastResync: CFAbsoluteTime = 0
     private var resyncing = false
-    private var launchResyncDone = false
     private var watchdogTimer: Timer?
     private var activityToken: NSObjectProtocol?
 
@@ -282,7 +286,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         renderedFrameCount = 0
         hasRenderedFrame = false
         lowFpsSince = 0
-        launchResyncDone = false
         watchdogTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.checkFrameRate()
         }
@@ -312,19 +315,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // At startup mpv's clock is often slightly off; if the first second
-        // after the video loads is slow, do one resync (the space-space
-        // workaround, automated) instead of waiting for the persistent-stall
-        // path below.
-        if !launchResyncDone {
-            launchResyncDone = true
-            if fps < vfps * 0.8 {
-                resyncPlayback()
-                lastResync = now
-                return
-            }
-        }
-
+        // Persistent stall (e.g. a mid-playback clock stall). Startup and seek
+        // stalls are handled by the PLAYBACK_RESTART resync.
         if fps < vfps * 0.6 {
             if lowFpsSince == 0 { lowFpsSince = now }
             if now - lowFpsSince >= 2.0, now - lastResync >= 5.0 {
@@ -338,11 +330,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Bounce pause to reset mpv's playback clock (the manual space-space
-    /// workaround, done automatically).
+    /// workaround, done automatically). Debounced so the un-pause that ends a
+    /// resync (which itself fires PLAYBACK_RESTART) can't loop.
     private func resyncPlayback() {
         guard let mpv = mpvController else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        guard !resyncing, now - lastResync >= 1.5 else { return }
         resyncing = true
-        fputs("[polyptych] low frame rate — resyncing playback\n", stderr)
+        lastResync = now
+        fputs("[polyptych] resyncing playback\n", stderr)
         mpv.cmd(["set", "pause", "yes"])
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self else { return }
@@ -350,6 +346,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if self.wantsPlaying {
                 self.mpvController?.cmd(["set", "pause", "no"])
             }
+        }
+    }
+
+    /// Give mpv a moment to settle after a seek/start, then resync once.
+    private func scheduleResyncAfterRestart() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, self.wantsPlaying, !self.resyncing else { return }
+            self.resyncPlayback()
         }
     }
 

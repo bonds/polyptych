@@ -29,23 +29,30 @@ pause/unpause workaround fixes it.
 
 ## Fix / takeaway
 
-A frame-rate watchdog: poll the rendered fps once a second; if it stays
-below 60% of `container-fps` for ~2s while we should be playing, bounce
-pause (`pause=yes`, then `pause=no` after ~200ms) to reset the clock. Guard
-it with "the video is loaded" (`container-fps > 1`) and "we have rendered at
-least one frame", otherwise it fires during the normal initial buffering.
+mpv emits `MPV_EVENT_PLAYBACK_RESTART` on start of playback **and after
+each seek** — exactly the two points where the stall happens. Resync there:
+bounce pause (`pause=yes`, then `pause=no` after ~200ms) a moment after
+playback restarts. This directly automates the space-space workaround at the
+right moments, instead of trying to infer it from the frame rate.
 
-Two things the first attempt got wrong:
+Keep an fps watchdog as a backstop for stalls that don't come with a
+`PLAYBACK_RESTART` (a mid-playback clock stall): poll the rendered fps and,
+if it stays below 60% of `container-fps` for ~2s while playing, resync. It
+needs "the video is loaded" (`container-fps > 1`) and "we have rendered at
+least one frame" guards, or it fires during normal initial buffering.
+Debounce resyncs (~1.5s): the un-pause that ends a resync itself fires
+`PLAYBACK_RESTART`, which would otherwise loop.
+
+Two traps found along the way:
 
 - **App Nap.** When the app is not the active app (e.g. launched from a
-  terminal) macOS throttles its timers, so the watchdog timer never fired.
-  Hold a `ProcessInfo.beginActivity(options: [.userInitiated, …])` while
-  playing to keep it running.
-- **Startup needs a lower bar.** The stall is most common right after
-  launch, and the first second after the video loads is often only slightly
-  slow. Do one resync at that first healthy-video check if the fps is below
-  80% of `container-fps`, rather than waiting for the 2s persistent path.
+  terminal) macOS throttles its timers, so a timer-based watchdog never
+  fires. Hold a `ProcessInfo.beginActivity(options: [.userInitiated, …])`
+  while playing.
+- **`estimated-vf-fps` reads 0 exactly when frames stall**, so it can't be
+  used as the reference. `container-fps` stays constant.
 
-**Lesson:** don't use `estimated-vf-fps` to detect a stall — it is 0 when
-frames stall. Use `container-fps` as the constant reference. And prevent App
-Nap, or background throttling silently disables any timer-based watchdog.
+**Lesson:** for a known stall trigger, hook the mpv event that marks it
+(`PLAYBACK_RESTART`) rather than trying to detect the symptom. Don't use
+`estimated-vf-fps` to detect a stall, and prevent App Nap or background
+throttling silently disables any timer-based watchdog.
