@@ -30,3 +30,4 @@ than deleting it.
 - [2026-10-17 — mpv's clock can stall after a seek or at startup](2026-10-17-mpv-clock-stall.md)
 - [2026-10-17 — `activateIgnoringOtherApps` is a no-op on macOS 14+](2026-10-17-macos-activation-menu-bar.md)
 - [2026-10-17 — Synchronous file I/O on a network mount freezes the UI](2026-10-17-smb-main-thread-io.md)
+- [2026-10-25 — A hardcoded /nix/store path in Package.swift breaks the app on GC](2026-10-25-nix-store-hardcoded-libmpv.md)

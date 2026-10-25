@@ -20,7 +20,7 @@
         {
           default = pkgs.stdenv.mkDerivation {
             pname = "polyptych";
-            version = "0.11.3";
+            version = "0.11.4";
             src = self;
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -83,6 +83,17 @@
                 manifest.json content.js background.js icon.svg)
             '';
 
+            # Ad-hoc sign the bundle. Nix only linker-signs the binary, and
+            # fixupPhase's `strip` invalidates any signature made earlier, so
+            # sign in postFixup (which runs after strip). Without this,
+            # `codesign --verify --deep --strict` reports "code has no
+            # resources but signature indicates they must be present".
+            postFixup = ''
+              /usr/bin/codesign --force --sign - \
+                --identifier com.bonds.polyptych \
+                $out/Applications/polyptych.app
+            '';
+
             meta = with pkgs.lib; {
               description = "Multi-monitor video player — spans across all displays";
               homepage = "https://github.com/bonds/polyptych";
@@ -98,5 +109,19 @@
           program = "${self.packages.${system}.default}/bin/polyptych";
         };
       });
+
+      # `nix develop` then a plain `swift build -c release` works locally:
+      # LIBMPV_DIR tells Package.swift where to find libmpv.2.dylib.
+      devShells = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          libmpv = pkgs.mpv.override { scripts = [ ]; };
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [ pkgs.swift pkgs.swiftpm libmpv ];
+            LIBMPV_DIR = "${libmpv}/lib";
+          };
+        });
     };
 }

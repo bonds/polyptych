@@ -38,12 +38,18 @@ Or add to your flake inputs and install the package:
 
 ### From source
 
-Requires mpv with libmpv (nix or homebrew):
+Requires mpv with libmpv (nix or homebrew). The linker needs to find
+`libmpv.2.dylib`, so point `LIBMPV_DIR` at a libmpv `lib` directory. With
+nix, `nix develop` sets it for you:
 
 ```bash
+nix develop
 swift build -c release
 cp .build/arm64-apple-macosx/release/polyptych polyptych.app/Contents/MacOS/
 ```
+
+Without `nix develop`, set it explicitly, e.g.
+`LIBMPV_DIR=$(nix build --print-out-paths 'nixpkgs#mpv')/lib swift build -c release`.
 
 ## Usage
 
